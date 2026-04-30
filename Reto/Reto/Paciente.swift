@@ -28,18 +28,49 @@ class Paciente {
     var lugarNacimiento: String
     var caritasId: String
     var sexoPaciente: Sexo
+    var telefono: String?
+    var municipio: String?
+    var estado: String?
+    var nombreCompleto: String {
+        [
+            primerNombre,
+            segundoNombre,
+            primerApellido,
+            segundoApellido
+        ]
+            .compactMap { $0 }
+            .joined(separator: " ")
+    }
+    var condicionesCronicas: [String]
+    
+    var fechaProximoSeguimiento: Date?
+    var motivoProximoSeguimiento: String?
+
+    var edad: Int {
+        Calendar.current.dateComponents([.year], from: fechaNacimiento, to: Date()).year ?? 0
+    }
+    
+    
     
     init (
-        primerNombre: String,
-        segundoNombre: String? = nil,
-        primerApellido: String,
-        segundoApellido: String? = nil,
-        curpPaciente: String? = nil,
-        notas: String? = nil,
-        fechaNacimiento: Date,
-        lugarNacimiento: String,
-        caritasId: String,
-        sexoPaciente: Sexo
+    primerNombre: String,
+    segundoNombre: String? = nil,
+    primerApellido: String,
+    segundoApellido: String? = nil,
+    curpPaciente: String? = nil,
+    notas: String? = nil,
+    fechaNacimiento: Date,
+    lugarNacimiento: String,
+    caritasId: String,
+    sexoPaciente: Sexo,
+    telefono : String? = nil,
+    estado : String? = nil ,
+    municipio: String? = nil,
+    condicionesCronicas : [String],
+    fechaProximoSeguimiento: Date? = nil,
+    motivoProximoSeguimiento: String? = nil
+
+        
         
     ){
         self.idPaciente      = UUID()
@@ -54,6 +85,13 @@ class Paciente {
         self.lugarNacimiento = lugarNacimiento
         self.caritasId       = caritasId
         self.sexoPaciente    = sexoPaciente
+        self.telefono = telefono
+        self.municipio = municipio
+        self.estado = estado
+        self.condicionesCronicas = condicionesCronicas
+        self.fechaProximoSeguimiento = fechaProximoSeguimiento
+        self.motivoProximoSeguimiento = motivoProximoSeguimiento
+
     }
     
 }
