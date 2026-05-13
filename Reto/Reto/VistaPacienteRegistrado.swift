@@ -127,6 +127,8 @@ struct FilaDatoPaciente: View {
 
 struct ExpedientePacienteView: View {
     let paciente: Paciente
+    @State private var mostrarNuevaConsulta = false
+
 
     @State private var seccionSeleccionada: SeccionExpediente = .historial
 
@@ -137,9 +139,20 @@ struct ExpedientePacienteView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 20) {
-                Text("Expediente clínico")
-                    .font(.title)
-                    .fontWeight(.bold)
+                HStack {
+                    Text("Expediente clínico")
+                        .font(.title)
+                        .fontWeight(.bold)
+
+                    Spacer()
+
+                    Button {
+                        mostrarNuevaConsulta = true
+                    } label: {
+                        Label("Nueva consulta", systemImage: "plus")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
 
                 Picker("Sección", selection: $seccionSeleccionada) {
                     ForEach(SeccionExpediente.allCases) { seccion in
@@ -165,13 +178,18 @@ struct ExpedientePacienteView: View {
                 alignment: .topLeading
             )
         }
+        .sheet(isPresented: $mostrarNuevaConsulta) {
+            NuevaConsultaView(paciente: paciente)
+        }
     }
+
 
     private var contenidoDeSeccion: some View {
         Group {
             switch seccionSeleccionada {
             case .historial:
-                HistorialPacienteView()
+                HistorialPacienteView(consultas: paciente.consultas)
+
 
             case .datosClinicos:
                 DatosClinicosPacienteView()
@@ -189,56 +207,46 @@ struct ExpedientePacienteView: View {
 
     
 struct HistorialPacienteView: View {
-    let visitas: [VisitaDemo] = [
-        VisitaDemo(
-            fecha: "26 mar 2026",
-            lugar: "El Mezquital",
-            motivo: "Control rutinario · Glucosa 142",
-            diagnostico: "Diabetes tipo 2 en control rutinario. Ligera mejoría.",
-            notasMedico: "Ajuste de dosis. Dieta baja en carbohidratos.",
-            medicamentos: ["Metformina 1000mg", "Vitamina D"],
-            procedimientos: ["Toma de glucosa", "Nutrición"],
-            medico: "Dra. Sánchez"
-        ),
-        VisitaDemo(
-            fecha: "14 ene 2026",
-            lugar: "El Mezquital",
-            motivo: "Glucosa elevada · 178 mg/dL",
-            diagnostico: "Glucosa elevada. Requiere seguimiento cercano.",
-            notasMedico: "Se recomendó control nutricional y revisión de adherencia.",
-            medicamentos: ["Metformina 850mg"],
-            procedimientos: ["Toma de glucosa"],
-            medico: "Dra. Sánchez"
-        )
-    ]
+    let consultas: [Consulta]
+
+    var consultasOrdenadas: [Consulta] {
+        consultas.sorted { $0.fecha > $1.fecha }
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("2026 — \(visitas.count) visitas")
+                Text("Historial — \(consultas.count) consultas")
                     .font(.headline)
                     .foregroundStyle(.secondary)
 
-                ForEach(visitas) { visita in
-                    TarjetaVisitaView(visita: visita)
+                if consultas.isEmpty {
+                    Text("Este paciente todavía no tiene consultas registradas.")
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 8)
+                } else {
+                    ForEach(consultasOrdenadas) { consulta in
+                        TarjetaConsultaView(consulta: consulta)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
-struct TarjetaVisitaView: View {
-    let visita: VisitaDemo
+
+struct TarjetaConsultaView: View {
+    let consulta: Consulta
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("\(visita.fecha) — \(visita.lugar)")
+            HStack(alignment: .top) {
+                Text("\(consulta.fecha.formatted(date: .abbreviated, time: .omitted)) — \(consulta.lugar)")
                     .font(.headline)
 
                 Spacer()
 
-                Text(visita.motivo)
+                Text(consulta.motivo)
                     .foregroundStyle(.secondary)
             }
 
@@ -248,22 +256,22 @@ struct TarjetaVisitaView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Text(visita.diagnostico)
+            Text(consulta.diagnostico)
                 .fontWeight(.semibold)
 
             Text("Notas del médico")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Text(visita.notasMedico)
+            Text(consulta.notasMedico)
 
-            HStack {
+            HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Medicamentos")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    ForEach(visita.medicamentos, id: \.self) { medicamento in
+                    ForEach(consulta.medicamentos, id: \.self) { medicamento in
                         Text(medicamento)
                     }
                 }
@@ -275,7 +283,7 @@ struct TarjetaVisitaView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    ForEach(visita.procedimientos, id: \.self) { procedimiento in
+                    ForEach(consulta.procedimientos, id: \.self) { procedimiento in
                         Text(procedimiento)
                     }
                 }
@@ -285,7 +293,7 @@ struct TarjetaVisitaView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Text(visita.medico)
+            Text(consulta.medico)
                 .fontWeight(.semibold)
         }
         .padding()
@@ -293,6 +301,7 @@ struct TarjetaVisitaView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
+
 
 
 struct DatosClinicosPacienteView: View {
@@ -386,16 +395,12 @@ struct MedicamentosPacienteView: View {
                     MedicamentoCardView(
                         nombre: "Metformina 1000mg",
                         indicacion: "1 tableta cada 12 hrs · Con alimentos",
-                        estado: "Activo",
-                        activo: true
+                        fecha: "Desde mar 2026"
                     )
 
-                    MedicamentoCardView(
-                        nombre: "Vitamina D 1000UI",
-                        indicacion: "1 cápsula al día · Con desayuno",
-                        estado: "Activo",
-                        activo: true
-                    )
+
+                    
+
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -405,17 +410,11 @@ struct MedicamentosPacienteView: View {
 
                     MedicamentoCardView(
                         nombre: "Metformina 850mg",
-                        indicacion: "Ene 2026 — Mar 2026",
-                        estado: "Suspendido",
-                        activo: false
+                        indicacion: "1 tableta cada 12 hrs",
+                        fecha: "Ene 2026 — Mar 2026"
                     )
 
-                    MedicamentoCardView(
-                        nombre: "Metformina 500mg",
-                        indicacion: "Mar 2024 — Mar 2025",
-                        estado: "Suspendido",
-                        activo: false
-                    )
+                    
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -428,35 +427,29 @@ struct MedicamentosPacienteView: View {
 struct MedicamentoCardView: View {
     let nombre: String
     let indicacion: String
-    let estado: String
-    let activo: Bool
+    let fecha: String
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
                 Text(nombre)
                     .font(.headline)
 
-                Text(indicacion)
+                Spacer()
+
+                Text(fecha)
                     .foregroundStyle(.secondary)
             }
 
-            Spacer()
-
-            Text(estado)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(activo ? Color.green.opacity(0.15) : Color.gray.opacity(0.15))
-                .foregroundStyle(activo ? .green : .secondary)
-                .clipShape(Capsule())
+            Text(indicacion)
+                .foregroundStyle(.secondary)
         }
         .padding()
         .background(Color(.secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
+
 
 
 struct LineaTiempoPacienteView: View {

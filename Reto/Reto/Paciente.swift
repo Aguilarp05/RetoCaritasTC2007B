@@ -8,6 +8,9 @@
 import Foundation
 import SwiftData
 
+@Relationship(deleteRule: .cascade)
+var medicamentos: [MedicamentoPaciente] = []
+
 enum Sexo: String, Codable {
     case masculino
     case femenino
@@ -50,6 +53,15 @@ class Paciente {
         Calendar.current.dateComponents([.year], from: fechaNacimiento, to: Date()).year ?? 0
     }
     
+    
+    @Relationship(deleteRule: .cascade)
+    var consultas: [Consulta] = []
+    
+    
+    @Relationship(deleteRule: .cascade)
+    var medicamentos: [MedicamentoPaciente] = []
+
+
     
     
     init (
