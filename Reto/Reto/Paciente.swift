@@ -8,8 +8,7 @@
 import Foundation
 import SwiftData
 
-@Relationship(deleteRule: .cascade)
-var medicamentos: [MedicamentoPaciente] = []
+
 
 enum Sexo: String, Codable {
     case masculino
