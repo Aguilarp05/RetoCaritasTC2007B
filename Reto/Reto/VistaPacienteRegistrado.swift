@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 enum SeccionExpediente: String, CaseIterable, Identifiable {
     case historial = "Historial"
@@ -61,8 +62,8 @@ enum TipoEventoLineaTiempo {
 
 
 struct VistaPacienteRegistrado: View {
-    let paciente :Paciente
-    
+    @Bindable var paciente: Paciente
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Image(systemName: "person.crop.circle.fill")
@@ -126,7 +127,7 @@ struct FilaDatoPaciente: View {
 }
 
 struct ExpedientePacienteView: View {
-    let paciente: Paciente
+    @Bindable var paciente: Paciente
     @State private var mostrarNuevaConsulta = false
 
 
@@ -178,9 +179,11 @@ struct ExpedientePacienteView: View {
                 alignment: .topLeading
             )
         }
-        .sheet(isPresented: $mostrarNuevaConsulta) {
+        .fullScreenCover(isPresented: $mostrarNuevaConsulta) {
             NuevaConsultaView(paciente: paciente)
         }
+
+
     }
 
 
@@ -195,7 +198,8 @@ struct ExpedientePacienteView: View {
                 DatosClinicosPacienteView()
 
             case .medicamentos:
-                MedicamentosPacienteView()
+                MedicamentosPacienteView(medicamentos: paciente.medicamentos)
+
 
             case .lineaTiempo:
                 LineaTiempoPacienteView()
@@ -234,6 +238,7 @@ struct HistorialPacienteView: View {
         }
     }
 }
+
 
 struct TarjetaConsultaView: View {
     let consulta: Consulta
@@ -301,6 +306,7 @@ struct TarjetaConsultaView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
+
 
 
 
@@ -384,38 +390,32 @@ struct DatoClinicoBloque: View {
 
 
 struct MedicamentosPacienteView: View {
+    let medicamentos: [MedicamentoPaciente]
+
+    var medicamentosActivos: [MedicamentoPaciente] {
+        medicamentos
+            .filter { $0.estaActivo }
+            .sorted { $0.fechaInicio > $1.fechaInicio }
+    }
+
+    var medicamentosAnteriores: [MedicamentoPaciente] {
+        medicamentos
+            .filter { !$0.estaActivo }
+            .sorted { $0.fechaInicio > $1.fechaInicio }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Medicamentos activos")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
+                SeccionMedicamentosView(
+                    titulo: "Medicamentos activos",
+                    medicamentos: medicamentosActivos
+                )
 
-                    MedicamentoCardView(
-                        nombre: "Metformina 1000mg",
-                        indicacion: "1 tableta cada 12 hrs · Con alimentos",
-                        fecha: "Desde mar 2026"
-                    )
-
-
-                    
-
-                }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Anteriores")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-
-                    MedicamentoCardView(
-                        nombre: "Metformina 850mg",
-                        indicacion: "1 tableta cada 12 hrs",
-                        fecha: "Ene 2026 — Mar 2026"
-                    )
-
-                    
-                }
+                SeccionMedicamentosView(
+                    titulo: "Anteriores",
+                    medicamentos: medicamentosAnteriores
+                )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -423,32 +423,68 @@ struct MedicamentosPacienteView: View {
 }
 
 
+struct SeccionMedicamentosView: View {
+    let titulo: String
+    let medicamentos: [MedicamentoPaciente]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(titulo)
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            if medicamentos.isEmpty {
+                Text("Sin medicamentos registrados.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(medicamentos) { medicamento in
+                    MedicamentoCardView(medicamento: medicamento)
+                }
+            }
+        }
+    }
+}
+
+
+
 
 struct MedicamentoCardView: View {
-    let nombre: String
-    let indicacion: String
-    let fecha: String
+    let medicamento: MedicamentoPaciente
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(nombre)
+            HStack(alignment: .top) {
+                Text(medicamento.nombre)
                     .font(.headline)
 
                 Spacer()
 
-                Text(fecha)
+                Text(rangoFechas)
                     .foregroundStyle(.secondary)
             }
 
-            Text(indicacion)
+            Text(medicamento.indicacion)
                 .foregroundStyle(.secondary)
         }
         .padding()
         .background(Color(.secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
+
+    private var rangoFechas: String {
+        if let fechaFin = medicamento.fechaFin {
+            return "\(formatear(medicamento.fechaInicio)) — \(formatear(fechaFin))"
+        } else {
+            return "Desde \(formatear(medicamento.fechaInicio))"
+        }
+    }
+
+    private func formatear(_ fecha: Date) -> String {
+        fecha.formatted(.dateTime.month(.abbreviated).year())
+    }
 }
+
+
 
 
 

@@ -7,9 +7,18 @@
 
 import Foundation
 import SwiftData
+enum TipoConsulta: String, Codable, CaseIterable, Identifiable {
+    case consultaGeneral = "Consulta general"
+    case entregaMedicamentos = "Entrega de medicamentos"
+    case optometrista = "Optometrista"
+    case dental = "Consulta dental"
+
+    var id: String { rawValue }
+}
 
 @Model
 class Consulta {
+    var tipoConsulta: TipoConsulta
     var idConsulta: UUID
     var fecha: Date
     var lugar: String
@@ -21,6 +30,7 @@ class Consulta {
     var medico: String
 
     init(
+        tipoConsulta: TipoConsulta,
         fecha: Date,
         lugar: String,
         motivo: String,
@@ -31,6 +41,7 @@ class Consulta {
         medico: String
     ) {
         self.idConsulta = UUID()
+        self.tipoConsulta = tipoConsulta
         self.fecha = fecha
         self.lugar = lugar
         self.motivo = motivo
@@ -41,4 +52,5 @@ class Consulta {
         self.medico = medico
     }
 }
+
 
