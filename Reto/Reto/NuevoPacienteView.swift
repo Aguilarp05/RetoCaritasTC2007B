@@ -22,6 +22,8 @@ struct NuevoPacienteView: View {
 
     var totalPasos: Int { pasosDinamicos.count }
 
+    @State private var pacienteRegistrado = false
+
     // Paso 1
     @State private var curp            = ""
     @State private var nombreBusqueda  = ""
@@ -67,6 +69,34 @@ struct NuevoPacienteView: View {
     @State private var aceptaPrivacidad = false
     @State private var mostrarPDF       = false
     @State private var trazos: [Line]   = []
+
+    // MARK: - Validación por paso
+    var pasoValido: Bool {
+        switch pasosDinamicos[pasoActual] {
+        case "identificacion":
+            return !tipoPaciente.isEmpty
+        case "datos_personales":
+            return !primerNombre.trimmingCharacters(in: .whitespaces).isEmpty &&
+                   !primerApellido.trimmingCharacters(in: .whitespaces).isEmpty &&
+                   sexo != .noDefinido
+        case "ubicacion":
+            return !estadoSeleccionado.isEmpty &&
+                   !municipioSeleccionado.isEmpty &&
+                   !comunidad.trimmingCharacters(in: .whitespaces).isEmpty
+        case "consulta":
+            return !motivoConsulta.trimmingCharacters(in: .whitespaces).isEmpty &&
+                   !medicoSeleccionado.isEmpty
+        case "signos_vitales":
+            return !peso.isEmpty && !talla.isEmpty &&
+                   !presionArterial.isEmpty && !pulso.isEmpty &&
+                   !frecuenciaCardiaca.isEmpty && !frecuenciaResp.isEmpty &&
+                   !perimetroAbdominal.isEmpty
+        case "privacidad":
+            return aceptaPrivacidad
+        default:
+            return true
+        }
+    }
 
     // MARK: - Body
     var body: some View {
@@ -157,21 +187,26 @@ struct NuevoPacienteView: View {
             }
 
             Button(pasoActual < totalPasos - 1 ? "Continuar →" : "Registrar paciente") {
-                pasoActual += 1
+                if pasoActual == totalPasos - 1 {
+                    pacienteRegistrado = true
+                } else {
+                    pasoActual += 1
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
-            .background(
-                pasosDinamicos[pasoActual] == "privacidad" && !aceptaPrivacidad
-                    ? Color.caritasGris
-                    : (pasoActual < totalPasos - 1 ? Color.caritasPrimario : Color.caritasAcento)
-            )
+            .background(!pasoValido ? Color.caritasGris : (pasoActual < totalPasos - 1 ? Color.caritasPrimario : Color.caritasAcento))
             .foregroundStyle(.white)
             .clipShape(RoundedRectangle(cornerRadius: 8))
-            .disabled(pasosDinamicos[pasoActual] == "privacidad" && !aceptaPrivacidad)
+            .disabled(!pasoValido)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
+        .alert("Paciente registrado", isPresented: $pacienteRegistrado) {
+            Button("Aceptar") { }
+        } message: {
+            Text("\(primerNombre) \(primerApellido) ha sido registrado exitosamente.")
+        }
     }
 
     // MARK: - Paso 1

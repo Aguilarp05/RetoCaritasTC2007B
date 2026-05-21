@@ -40,7 +40,7 @@ struct NuevaConsultaView: View {
     @State private var diagnosticoOptometria = ""
     @State private var servicioDental = ""
 
-    
+    @State private var pacienteRegistrado = false
     @State private var tipoConsulta: TipoConsulta = .consultaGeneral
 
 
@@ -284,6 +284,8 @@ struct NuevaConsultaView: View {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
+    
+    
 }
 
 
