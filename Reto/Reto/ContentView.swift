@@ -97,6 +97,12 @@ struct ContentView: View {
         NavigationSplitView {
             List {
                 NavigationLink {
+                    DashboardView()
+                } label: {
+                    Label("Dashboard", systemImage: "square.grid.2x2")
+                }
+
+                NavigationLink {
                     NuevoPacienteView()
                 } label: {
                     Label("Nuevo paciente", systemImage: "person.badge.plus")
@@ -113,26 +119,16 @@ struct ContentView: View {
                 } label: {
                     Label("Nueva consulta demo", systemImage: "stethoscope")
                 }
+
                 NavigationLink {
                     StatisticsDashboardView()
                 } label: {
-                    Label("Estadisticas", systemImage: "chart.bar")
+                    Label("Estadísticas", systemImage: "chart.bar")
                 }
             }
-            .navigationTitle("Reto")
+            .navigationTitle("Cáritas")
         } detail: {
-            VStack(spacing: 12) {
-                Image(systemName: "heart.text.square")
-                    .font(.system(size: 48))
-                    .foregroundStyle(Color.caritasPrimario)
-
-                Text("Selecciona una pantalla")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-
-                Text("TEMPORAL ")
-                    .foregroundStyle(.secondary)
-            }
+            DashboardView()
         }
     }
 }
