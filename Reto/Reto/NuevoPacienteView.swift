@@ -46,7 +46,6 @@ struct NuevoPacienteView: View {
     // Paso 4
     @State private var servicioSeleccionado  = "Consulta general"
     @State private var medicoSeleccionado    = "Dra. Rosa Sánchez"
-    @State private var prioridad             = "normal"
     @State private var motivoConsulta        = ""
     @State private var tieneIMSS             = ""
     @State private var doctorDental          = ""
@@ -107,8 +106,8 @@ struct NuevoPacienteView: View {
             Divider()
             navegacion
         }
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .background(Color(.systemBackground))
+        .colorScheme(.light)
     }
 
     // MARK: - Barra de progreso
@@ -156,7 +155,7 @@ struct NuevoPacienteView: View {
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(height: 420)
+        .frame(maxHeight: .infinity)
     }
 
     var tituloPaso: String {
@@ -294,53 +293,51 @@ struct NuevoPacienteView: View {
     var paso2: some View {
         VStack(alignment: .leading, spacing: 14) {
 
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Primer nombre")
-                        .font(.caption)
-                        .foregroundStyle(Color.caritasGris)
-                    TextField("Primer nombre", text: $primerNombre)
-                        .padding(10)
-                        .background(Color(.systemGray6))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .font(.subheadline)
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Segundo nombre (opcional)")
-                        .font(.caption)
-                        .foregroundStyle(Color.caritasGris)
-                    TextField("Segundo nombre", text: $segundoNombre)
-                        .padding(10)
-                        .background(Color(.systemGray6))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .font(.subheadline)
-                }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Primer nombre")
+                    .font(.caption)
+                    .foregroundStyle(Color.caritasGris)
+                TextField("Primer nombre", text: $primerNombre)
+                    .padding(10)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .font(.subheadline)
             }
 
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Apellido paterno")
-                        .font(.caption)
-                        .foregroundStyle(Color.caritasGris)
-                    TextField("Apellido paterno", text: $primerApellido)
-                        .padding(10)
-                        .background(Color(.systemGray6))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .font(.subheadline)
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Apellido materno (opcional)")
-                        .font(.caption)
-                        .foregroundStyle(Color.caritasGris)
-                    TextField("Apellido materno", text: $segundoApellido)
-                        .padding(10)
-                        .background(Color(.systemGray6))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .font(.subheadline)
-                }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Segundo nombre (opcional)")
+                    .font(.caption)
+                    .foregroundStyle(Color.caritasGris)
+                TextField("Segundo nombre", text: $segundoNombre)
+                    .padding(10)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .font(.subheadline)
             }
 
-            HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Apellido paterno")
+                    .font(.caption)
+                    .foregroundStyle(Color.caritasGris)
+                TextField("Apellido paterno", text: $primerApellido)
+                    .padding(10)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .font(.subheadline)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Apellido materno (opcional)")
+                    .font(.caption)
+                    .foregroundStyle(Color.caritasGris)
+                TextField("Apellido materno", text: $segundoApellido)
+                    .padding(10)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .font(.subheadline)
+            }
+
+            HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Fecha de nacimiento")
                         .font(.caption)
@@ -351,6 +348,7 @@ struct NuevoPacienteView: View {
                         .background(Color(.systemGray6))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
+
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Edad")
                         .font(.caption)
@@ -359,12 +357,12 @@ struct NuevoPacienteView: View {
                         .font(.subheadline)
                         .foregroundStyle(Color.caritasGris)
                         .padding(10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(width: 120, alignment: .leading)
                         .background(Color(.systemGray6))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
             }
-
+            
             VStack(alignment: .leading, spacing: 4) {
                 Text("Sexo")
                     .font(.caption)
@@ -372,6 +370,8 @@ struct NuevoPacienteView: View {
                 HStack(spacing: 10) {
                     botonSexo(etiqueta: "Femenino", valor: .femenino)
                     botonSexo(etiqueta: "Masculino", valor: .masculino)
+                    botonSexo(etiqueta: "Prefiero no decir", valor: .noDefinido)
+
                 }
             }
 
@@ -536,16 +536,6 @@ struct NuevoPacienteView: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Prioridad")
-                    .font(.caption)
-                    .foregroundStyle(Color.caritasGris)
-                HStack(spacing: 10) {
-                    botonPrioridad(etiqueta: "Normal", valor: "normal")
-                    botonPrioridad(etiqueta: "Urgente", valor: "urgente")
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
                 Text("Médico asignado")
                     .font(.caption)
                     .foregroundStyle(Color.caritasGris)
@@ -576,37 +566,6 @@ struct NuevoPacienteView: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(seleccionado.wrappedValue == valor ? Color.caritasPrimario : Color.clear, lineWidth: 1)
-                )
-        }
-    }
-
-    func botonPrioridad(etiqueta: String, valor: String) -> some View {
-        Button {
-            prioridad = valor
-        } label: {
-            Text(etiqueta)
-                .font(.subheadline)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(
-                    prioridad == valor
-                        ? (valor == "urgente" ? Color(hex: "#FCEBEB") : Color.caritasSuave)
-                        : Color(.systemGray6)
-                )
-                .foregroundStyle(
-                    prioridad == valor
-                        ? (valor == "urgente" ? Color(hex: "#A32D2D") : Color.caritasPrimario)
-                        : Color.caritasGris
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(
-                            prioridad == valor
-                                ? (valor == "urgente" ? Color(hex: "#E24B4A") : Color.caritasPrimario)
-                                : Color.clear,
-                            lineWidth: 1
-                        )
                 )
         }
     }
