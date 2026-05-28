@@ -1,33 +1,15 @@
-//
-//  VistaPacienteRegistrado.swift
-//  Reto
-//
-//  Created by RAFAEL VALDEZ GOMEZ on 30/04/26.
-//
-
 import SwiftUI
 import SwiftData
 
 enum SeccionExpediente: String, CaseIterable, Identifiable {
-    case historial = "Historial"
+    case historial     = "Historial"
     case datosClinicos = "Datos clínicos"
-    case medicamentos = "Medicamentos"
-    case lineaTiempo = "Línea de tiempo"
+    case medicamentos  = "Medicamentos"
+    case lineaTiempo   = "Línea de tiempo"
 
     var id: String { rawValue }
 }
 
-struct VisitaDemo: Identifiable {
-    let id = UUID()
-    let fecha: String
-    let lugar: String
-    let motivo: String
-    let diagnostico: String
-    let notasMedico: String
-    let medicamentos: [String]
-    let procedimientos: [String]
-    let medico: String
-}
 struct EventoLineaTiempo: Identifiable {
     let id = UUID()
     let fecha: String
@@ -37,77 +19,143 @@ struct EventoLineaTiempo: Identifiable {
 }
 
 enum TipoEventoLineaTiempo {
-    case seguimiento
-    case tratamiento
-    case alerta
-    case nota
-    case inicio
+    case seguimiento, tratamiento, alerta, nota, inicio
 
     var color: Color {
         switch self {
-        case .seguimiento:
-            return .blue
-        case .tratamiento:
-            return .green
-        case .alerta:
-            return .orange
-        case .nota:
-            return .gray
-        case .inicio:
-            return .purple
+        case .seguimiento: return Color.caritasPrimario
+        case .tratamiento: return .green
+        case .alerta:      return Color.caritasAcento
+        case .nota:        return Color.caritasGris
+        case .inicio:      return Color.caritasAzul
         }
     }
 }
 
-
+// MARK: - Panel lateral del paciente
 
 struct VistaPacienteRegistrado: View {
     @Bindable var paciente: Paciente
+    @Environment(\.toggleSidebar) private var toggleSidebar
+    var onBack: (() -> Void)? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Image(systemName: "person.crop.circle.fill")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
 
-            Text(paciente.nombreCompleto)
-                            .font(.title2)
-                            .fontWeight(.bold)
+                // Encabezado
+                VStack(alignment: .leading, spacing: 10) {
+                    if let back = onBack {
+                        Button { back() } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "chevron.left")
+                                    .font(.subheadline.weight(.medium))
+                                Text("Historial")
+                                    .font(.subheadline)
+                            }
+                            .foregroundStyle(Color.caritasPrimario)
+                        }
+                    } else {
+                        Button { toggleSidebar() } label: {
+                            Image(systemName: "line.3.horizontal")
+                                .font(.title3)
+                                .foregroundStyle(Color.caritasAzul)
+                        }
+                    }
 
-                        Text(paciente.caritasId)
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.system(size: 48))
+                        .foregroundStyle(Color.caritasPrimario)
 
+                    Text(paciente.nombreCompleto)
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.caritasAzul)
+
+                    HStack(spacing: 8) {
                         Text("Paciente activa")
+                            .font(.caption)
+                            .foregroundStyle(Color.caritasPrimario)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.caritasSuave)
+                            .clipShape(Capsule())
+                    }
+                }
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.caritasSuave.opacity(0.5))
 
-                        Text("Datos personales")
-                            .font(.headline)
+                Divider()
 
-                        FilaDatoPaciente(titulo: "Edad", valor: "\(paciente.edad) años")
-                        FilaDatoPaciente(titulo: "Sexo", valor: paciente.sexoPaciente.rawValue)
-                        FilaDatoPaciente(titulo: "Municipio", valor: paciente.municipio ?? "Sin municipio")
-                        FilaDatoPaciente(titulo: "Estado", valor: paciente.estado ?? "Sin estado")
-                        FilaDatoPaciente(titulo: "Contacto", valor: paciente.telefono ?? "-")
+                // Datos personales
+                seccionHeader("Datos personales")
 
-                        Text("Notas importantes")
-                            .font(.headline)
+                VStack(spacing: 0) {
+                    FilaDatoPaciente(titulo: "Edad",      valor: "\(paciente.edad) años")
+                    Divider().padding(.leading, 20)
+                    FilaDatoPaciente(titulo: "Sexo",      valor: paciente.sexoPaciente.rawValue.capitalized)
+                    Divider().padding(.leading, 20)
+                    FilaDatoPaciente(titulo: "Municipio", valor: paciente.municipio ?? "—")
+                    Divider().padding(.leading, 20)
+                    FilaDatoPaciente(titulo: "Estado",    valor: paciente.estado ?? "—")
+                    Divider().padding(.leading, 20)
+                    FilaDatoPaciente(titulo: "Contacto",  valor: paciente.telefono ?? "—")
+                }
 
-                        Text(paciente.notas ?? "Sin notas registradas")
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.gray, lineWidth: 1)
-                            )
+                // Notas importantes
+                if let notas = paciente.notas, !notas.isEmpty {
+                    Divider()
+                    seccionHeader("Notas importantes")
 
-                        Text("Condiciones crónicas")
-                            .font(.headline)
-            
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(Color.caritasAcento)
+                            .font(.subheadline)
+                        Text(notas)
+                            .font(.subheadline)
+                            .foregroundStyle(Color(hex: "#633806"))
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 16)
+                }
+
+                // Condiciones crónicas
+                if !paciente.condicionesCronicas.isEmpty {
+                    Divider()
+                    seccionHeader("Condiciones crónicas")
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(paciente.condicionesCronicas, id: \.self) { condicion in
+                            Text(condicion)
+                                .font(.subheadline)
+                                .foregroundStyle(Color.caritasAzul)
+                                .padding(.horizontal, 20)
+                        }
+                    }
+                    .padding(.bottom, 16)
+                }
+            }
         }
-        .padding(24)
-        .frame(width: 320)
+        .frame(width: 340)
         .frame(maxHeight: .infinity, alignment: .top)
         .background(Color(.systemBackground))
+    }
 
-
+    private func seccionHeader(_ titulo: String) -> some View {
+        Text(titulo)
+            .font(.caption)
+            .fontWeight(.semibold)
+            .foregroundStyle(Color.caritasGris)
+            .textCase(.uppercase)
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
+
+// MARK: - Fila de dato
 
 struct FilaDatoPaciente: View {
     let titulo: String
@@ -116,100 +164,123 @@ struct FilaDatoPaciente: View {
     var body: some View {
         HStack {
             Text(titulo)
-                .foregroundStyle(.secondary)
-
+                .font(.subheadline)
+                .foregroundStyle(Color.caritasGris)
             Spacer()
-
             Text(valor)
-                .fontWeight(.semibold)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundStyle(Color.caritasAzul)
         }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
     }
 }
 
+// MARK: - Vista principal del expediente
+
 struct ExpedientePacienteView: View {
     @Bindable var paciente: Paciente
+    var onBack: (() -> Void)? = nil
     @State private var mostrarNuevaConsulta = false
-
-
     @State private var seccionSeleccionada: SeccionExpediente = .historial
+    @State private var pdfURL: URL?
+    @State private var mostrarCompartirExpediente = false
 
     var body: some View {
         HStack(spacing: 0) {
-            VistaPacienteRegistrado(paciente: paciente)
+            VistaPacienteRegistrado(paciente: paciente, onBack: onBack)
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 0) {
+                // Encabezado del expediente
                 HStack {
                     Text("Expediente clínico")
-                        .font(.title)
+                        .font(.title2)
                         .fontWeight(.bold)
-
+                        .foregroundStyle(Color.caritasAzul)
                     Spacer()
+                    Button {
+                        pdfURL = generarURLPDF(
+                            ExpedientePDFContentView(paciente: paciente),
+                            nombre: "expediente_\(paciente.caritasId)"
+                        )
+                        if pdfURL != nil { mostrarCompartirExpediente = true }
+                    } label: {
+                        Label("Exportar", systemImage: "arrow.down.doc")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(Color.caritasPrimario)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(Color.caritasSuave)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
 
                     Button {
                         mostrarNuevaConsulta = true
                     } label: {
                         Label("Nueva consulta", systemImage: "plus")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.caritasPrimario)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
-                    .buttonStyle(.borderedProminent)
                 }
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
+                .padding(.bottom, 16)
+                .frame(maxWidth: .infinity)
+                .background(Color.caritasSuave)
 
                 Picker("Sección", selection: $seccionSeleccionada) {
                     ForEach(SeccionExpediente.allCases) { seccion in
-                        Text(seccion.rawValue)
-                            .tag(seccion)
+                        Text(seccion.rawValue).tag(seccion)
                     }
                 }
                 .pickerStyle(.segmented)
+                .tint(Color.caritasPrimario)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 16)
 
-                Text("Seleccionado: \(seccionSeleccionada.rawValue)")
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                Divider()
 
                 contenidoDeSeccion
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-
-                Spacer()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .padding(24)
-            .frame(
-                maxWidth: .infinity,
-                maxHeight: .infinity,
-                alignment: .topLeading
-            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(Color(.systemBackground))
         }
+        .colorScheme(.light)
+        .toolbar(.hidden, for: .navigationBar)
         .fullScreenCover(isPresented: $mostrarNuevaConsulta) {
             NuevaConsultaView(paciente: paciente)
         }
-
-
+        .sheet(isPresented: $mostrarCompartirExpediente) {
+            if let url = pdfURL {
+                ShareSheet(items: [url])
+            }
+        }
     }
-
 
     private var contenidoDeSeccion: some View {
         Group {
             switch seccionSeleccionada {
-            case .historial:
-                HistorialPacienteView(consultas: paciente.consultas)
-
-
-            case .datosClinicos:
-                DatosClinicosPacienteView()
-
-            case .medicamentos:
-                MedicamentosPacienteView(medicamentos: paciente.medicamentos)
-
-
-            case .lineaTiempo:
-                LineaTiempoPacienteView()
+            case .historial:     HistorialPacienteView(consultas: paciente.consultas)
+            case .datosClinicos: DatosClinicosPacienteView()
+            case .medicamentos:  MedicamentosPacienteView(medicamentos: paciente.medicamentos)
+            case .lineaTiempo:   LineaTiempoPacienteView()
             }
         }
     }
 }
 
+// MARK: - Historial
 
-    
 struct HistorialPacienteView: View {
     let consultas: [Consulta]
 
@@ -219,15 +290,21 @@ struct HistorialPacienteView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Historial — \(consultas.count) consultas")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("\(consultas.count) consultas")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.caritasGris)
+                    .textCase(.uppercase)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 20)
+                    .padding(.bottom, 12)
 
                 if consultas.isEmpty {
                     Text("Este paciente todavía no tiene consultas registradas.")
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 8)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.caritasGris)
+                        .padding(.horizontal, 24)
                 } else {
                     ForEach(consultasOrdenadas) { consulta in
                         TarjetaConsultaView(consulta: consulta)
@@ -239,241 +316,251 @@ struct HistorialPacienteView: View {
     }
 }
 
-
 struct TarjetaConsultaView: View {
     let consulta: Consulta
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
+            // Encabezado de la consulta
             HStack(alignment: .top) {
-                Text("\(consulta.fecha.formatted(date: .abbreviated, time: .omitted)) — \(consulta.lugar)")
-                    .font(.headline)
-
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(consulta.fecha.formatted(date: .abbreviated, time: .omitted))
+                        .font(.caption)
+                        .foregroundStyle(Color.caritasGris)
+                    Text(consulta.lugar)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.caritasAzul)
+                }
                 Spacer()
+                Text(consulta.tipoConsulta.rawValue)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(Color.caritasPrimario)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.caritasSuave)
+                    .clipShape(Capsule())
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 14)
 
-                Text(consulta.motivo)
-                    .foregroundStyle(.secondary)
+            Divider().padding(.leading, 24)
+
+            // Motivo
+            filaExpediente(etiqueta: "Motivo",       valor: consulta.motivo)
+            Divider().padding(.leading, 24)
+            filaExpediente(etiqueta: "Diagnóstico",  valor: consulta.diagnostico)
+
+            if !consulta.notasMedico.isEmpty {
+                Divider().padding(.leading, 24)
+                filaExpediente(etiqueta: "Notas",    valor: consulta.notasMedico)
             }
 
-            Divider()
-
-            Text("Diagnóstico")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Text(consulta.diagnostico)
-                .fontWeight(.semibold)
-
-            Text("Notas del médico")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Text(consulta.notasMedico)
-
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Medicamentos")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    ForEach(consulta.medicamentos, id: \.self) { medicamento in
-                        Text(medicamento)
-                    }
-                }
-
-                Spacer()
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Procedimientos")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    ForEach(consulta.procedimientos, id: \.self) { procedimiento in
-                        Text(procedimiento)
-                    }
-                }
+            if !consulta.medicamentos.isEmpty {
+                Divider().padding(.leading, 24)
+                filaExpediente(etiqueta: "Medicamentos", valor: consulta.medicamentos.joined(separator: ", "))
             }
 
-            Text("Médico")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if !consulta.procedimientos.isEmpty {
+                Divider().padding(.leading, 24)
+                filaExpediente(etiqueta: "Procedimientos", valor: consulta.procedimientos.joined(separator: ", "))
+            }
 
-            Text(consulta.medico)
-                .fontWeight(.semibold)
+            Divider().padding(.leading, 24)
+
+            // Médico
+            HStack(spacing: 6) {
+                Image(systemName: "stethoscope")
+                    .font(.caption)
+                    .foregroundStyle(Color.caritasPrimario)
+                Text(consulta.medico)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(Color.caritasPrimario)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
         }
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+
+        Divider()
+            .padding(.top, 4)
+    }
+
+    private func filaExpediente(etiqueta: String, valor: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(etiqueta)
+                .font(.caption)
+                .foregroundStyle(Color.caritasGris)
+                .frame(width: 100, alignment: .leading)
+            Text(valor)
+                .font(.subheadline)
+                .foregroundStyle(Color.caritasAzul)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 10)
     }
 }
 
-
-
+// MARK: - Datos clínicos
 
 struct DatosClinicosPacienteView: View {
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                LazyVGrid(
-                    columns: [
-                        GridItem(.flexible()),
-                        GridItem(.flexible())
-                    ],
-                    alignment: .leading,
-                    spacing: 20
-                ) {
-                    DatoClinicoItem(titulo: "Tipo de sangre", valor: "O+")
-                    DatoClinicoItem(titulo: "Peso", valor: "68 kg")
-                    DatoClinicoItem(titulo: "Estatura", valor: "1.57 m")
-                    DatoClinicoItem(titulo: "IMC", valor: "27.6 — Sobrepeso leve")
+            VStack(alignment: .leading, spacing: 0) {
+                seccionHeader("Métricas")
+
+                VStack(spacing: 0) {
+                    filaClinica(titulo: "Tipo de sangre", valor: "O+")
+                    Divider().padding(.leading, 24)
+                    filaClinica(titulo: "Peso",           valor: "68 kg")
+                    Divider().padding(.leading, 24)
+                    filaClinica(titulo: "Estatura",       valor: "1.57 m")
+                    Divider().padding(.leading, 24)
+                    filaClinica(titulo: "IMC",            valor: "27.6 — Sobrepeso leve")
                 }
 
-                VStack(alignment: .leading, spacing: 16) {
-                    DatoClinicoBloque(
-                        titulo: "Alergias",
-                        valor: "Penicilina (reacción cutánea severa)"
-                    )
+                Divider()
+                seccionHeader("Alergias")
+                bloqueTexto("Penicilina (reacción cutánea severa)")
 
-                    DatoClinicoBloque(
-                        titulo: "Antecedentes familiares",
-                        valor: "Madre con diabetes tipo 2. Padre con hipertensión."
-                    )
+                Divider()
+                seccionHeader("Antecedentes familiares")
+                bloqueTexto("Madre con diabetes tipo 2. Padre con hipertensión.")
 
-                    DatoClinicoBloque(
-                        titulo: "Antecedentes personales",
-                        valor: "Diagnóstico de diabetes tipo 2 desde 2021. Sin cirugías previas. No fuma, no consume alcohol."
-                    )
+                Divider()
+                seccionHeader("Antecedentes personales")
+                bloqueTexto("Diagnóstico de diabetes tipo 2 desde 2021. Sin cirugías previas. No fuma, no consume alcohol.")
 
-                    DatoClinicoBloque(
-                        titulo: "Notas médicas recientes",
-                        valor: "26 mar 2026: Ajuste de dosis. Dieta baja en carbohidratos.\n14 ene 2026: Glucosa elevada. Se recomendó control nutricional."
-                    )
-                }
+                Divider()
+                seccionHeader("Notas médicas recientes")
+                bloqueTexto("26 mar 2026: Ajuste de dosis. Dieta baja en carbohidratos.\n14 ene 2026: Glucosa elevada. Se recomendó control nutricional.")
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
-}
 
-struct DatoClinicoItem: View {
-    let titulo: String
-    let valor: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+    private func filaClinica(titulo: String, valor: String) -> some View {
+        HStack {
             Text(titulo)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
-
+                .foregroundStyle(Color.caritasGris)
+            Spacer()
             Text(valor)
-                .font(.headline)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundStyle(Color.caritasAzul)
         }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 10)
+    }
+
+    private func bloqueTexto(_ texto: String) -> some View {
+        Text(texto)
+            .font(.subheadline)
+            .foregroundStyle(Color.caritasAzul)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 14)
     }
 }
 
-struct DatoClinicoBloque: View {
-    let titulo: String
-    let valor: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(titulo)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            Text(valor)
-                .font(.headline)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
+@ViewBuilder
+private func seccionHeader(_ titulo: String) -> some View {
+    Text(titulo)
+        .font(.caption)
+        .fontWeight(.semibold)
+        .foregroundStyle(Color.caritasGris)
+        .textCase(.uppercase)
+        .padding(.horizontal, 24)
+        .padding(.top, 20)
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
 }
 
+// MARK: - Medicamentos
 
 struct MedicamentosPacienteView: View {
     let medicamentos: [MedicamentoPaciente]
 
     var medicamentosActivos: [MedicamentoPaciente] {
-        medicamentos
-            .filter { $0.estaActivo }
-            .sorted { $0.fechaInicio > $1.fechaInicio }
+        medicamentos.filter { $0.estaActivo }.sorted { $0.fechaInicio > $1.fechaInicio }
     }
 
     var medicamentosAnteriores: [MedicamentoPaciente] {
-        medicamentos
-            .filter { !$0.estaActivo }
-            .sorted { $0.fechaInicio > $1.fechaInicio }
+        medicamentos.filter { !$0.estaActivo }.sorted { $0.fechaInicio > $1.fechaInicio }
     }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                SeccionMedicamentosView(
-                    titulo: "Medicamentos activos",
-                    medicamentos: medicamentosActivos
-                )
+            VStack(alignment: .leading, spacing: 0) {
+                seccionHeader("Activos")
+                medicamentosSection(medicamentosActivos)
 
-                SeccionMedicamentosView(
-                    titulo: "Anteriores",
-                    medicamentos: medicamentosAnteriores
-                )
+                Divider()
+
+                seccionHeader("Anteriores")
+                medicamentosSection(medicamentosAnteriores)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
-}
 
-
-struct SeccionMedicamentosView: View {
-    let titulo: String
-    let medicamentos: [MedicamentoPaciente]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(titulo)
-                .font(.headline)
-                .foregroundStyle(.secondary)
-
-            if medicamentos.isEmpty {
+    private func medicamentosSection(_ lista: [MedicamentoPaciente]) -> some View {
+        Group {
+            if lista.isEmpty {
                 Text("Sin medicamentos registrados.")
-                    .foregroundStyle(.secondary)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.caritasGris)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 14)
             } else {
-                ForEach(medicamentos) { medicamento in
-                    MedicamentoCardView(medicamento: medicamento)
+                VStack(spacing: 0) {
+                    ForEach(lista) { med in
+                        MedicamentoFilaView(medicamento: med)
+                        Divider().padding(.leading, 24)
+                    }
                 }
             }
         }
     }
 }
 
-
-
-
-struct MedicamentoCardView: View {
+struct MedicamentoFilaView: View {
     let medicamento: MedicamentoPaciente
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .top) {
-                Text(medicamento.nombre)
-                    .font(.headline)
-
-                Spacer()
-
-                Text(rangoFechas)
-                    .foregroundStyle(.secondary)
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    if medicamento.estaActivo {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 7, height: 7)
+                    }
+                    Text(medicamento.nombre)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color.caritasAzul)
+                }
+                if !medicamento.indicacion.isEmpty {
+                    Text(medicamento.indicacion)
+                        .font(.caption)
+                        .foregroundStyle(Color.caritasGris)
+                }
             }
-
-            Text(medicamento.indicacion)
-                .foregroundStyle(.secondary)
+            Spacer()
+            Text(rangoFechas)
+                .font(.caption)
+                .foregroundStyle(Color.caritasGris)
         }
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 24)
+        .padding(.vertical, 12)
     }
 
     private var rangoFechas: String {
         if let fechaFin = medicamento.fechaFin {
-            return "\(formatear(medicamento.fechaInicio)) — \(formatear(fechaFin))"
+            return "\(formatear(medicamento.fechaInicio)) – \(formatear(fechaFin))"
         } else {
             return "Desde \(formatear(medicamento.fechaInicio))"
         }
@@ -484,42 +571,20 @@ struct MedicamentoCardView: View {
     }
 }
 
-
-
-
+// MARK: - Línea de tiempo
 
 struct LineaTiempoPacienteView: View {
     let eventos: [EventoLineaTiempo] = [
-        EventoLineaTiempo(
-            fecha: "10 abr 2026",
-            titulo: "Próximo seguimiento",
-            descripcion: "Control de glucosa programado.",
-            tipo: .seguimiento
-        ),
-        EventoLineaTiempo(
-            fecha: "26 mar 2026",
-            titulo: "Ajuste de dosis",
-            descripcion: "Se ajustó tratamiento. Paciente con ligera mejoría.",
-            tipo: .tratamiento
-        ),
-        EventoLineaTiempo(
-            fecha: "14 ene 2026",
-            titulo: "Glucosa elevada",
-            descripcion: "Registro de 178 mg/dL. Se recomendó control nutricional.",
-            tipo: .alerta
-        ),
-        EventoLineaTiempo(
-            fecha: "03 nov 2025",
-            titulo: "Evaluación nutricional",
-            descripcion: "IMC 27.4. Se indicó seguimiento nutricional.",
-            tipo: .nota
-        ),
-        EventoLineaTiempo(
-            fecha: "Mar 2024",
-            titulo: "Primera visita",
-            descripcion: "Paciente ingresa al programa de seguimiento.",
-            tipo: .inicio
-        )
+        EventoLineaTiempo(fecha: "10 abr 2026", titulo: "Próximo seguimiento",
+                          descripcion: "Control de glucosa programado.", tipo: .seguimiento),
+        EventoLineaTiempo(fecha: "26 mar 2026", titulo: "Ajuste de dosis",
+                          descripcion: "Se ajustó tratamiento. Paciente con ligera mejoría.", tipo: .tratamiento),
+        EventoLineaTiempo(fecha: "14 ene 2026", titulo: "Glucosa elevada",
+                          descripcion: "Registro de 178 mg/dL. Se recomendó control nutricional.", tipo: .alerta),
+        EventoLineaTiempo(fecha: "03 nov 2025", titulo: "Evaluación nutricional",
+                          descripcion: "IMC 27.4. Se indicó seguimiento nutricional.", tipo: .nota),
+        EventoLineaTiempo(fecha: "Mar 2024",    titulo: "Primera visita",
+                          descripcion: "Paciente ingresa al programa de seguimiento.", tipo: .inicio)
     ]
 
     var body: some View {
@@ -529,6 +594,8 @@ struct LineaTiempoPacienteView: View {
                     EventoLineaTiempoView(evento: evento)
                 }
             }
+            .padding(.top, 16)
+            .padding(.horizontal, 24)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -542,36 +609,34 @@ struct EventoLineaTiempoView: View {
             VStack(spacing: 0) {
                 Circle()
                     .fill(evento.tipo.color)
-                    .frame(width: 14, height: 14)
-
+                    .frame(width: 12, height: 12)
+                    .padding(.top, 3)
                 Rectangle()
-                    .fill(Color.gray.opacity(0.25))
-                    .frame(width: 2)
+                    .fill(Color(.systemGray4))
+                    .frame(width: 1.5)
                     .frame(maxHeight: .infinity)
             }
-            .frame(width: 20)
+            .frame(width: 16)
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(evento.fecha)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
+                    .font(.caption)
+                    .foregroundStyle(Color.caritasGris)
                 Text(evento.titulo)
-                    .font(.headline)
-
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.caritasAzul)
                 Text(evento.descripcion)
-                    .foregroundStyle(.secondary)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.caritasGris)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.bottom, 24)
+            .padding(.bottom, 28)
         }
     }
 }
 
-
-
-
-
+// MARK: - Preview
 
 #Preview {
     ExpedientePacienteView(
@@ -579,24 +644,261 @@ struct EventoLineaTiempoView: View {
             primerNombre: "Lupita",
             primerApellido: "Torres",
             notas: "Alergia a penicilina. No administrar derivados.",
-            fechaNacimiento: Calendar.current.date(
-                from: DateComponents(year: 1992, month: 3, day: 12)
-            )!,
+            fechaNacimiento: Calendar.current.date(from: DateComponents(year: 1992, month: 3, day: 12))!,
             lugarNacimiento: "El Mezquital",
             caritasId: "C-003",
             sexoPaciente: .femenino,
             telefono: "618 234 5678",
             estado: "Durango",
             municipio: "El Mezquital",
-            condicionesCronicas: [
-                "Diabetes tipo 2",
-                "Nutrición"
-            ],
-            fechaProximoSeguimiento: Calendar.current.date(
-                from: DateComponents(year: 2026, month: 4, day: 10)
-            ),
+            condicionesCronicas: ["Diabetes tipo 2", "Nutrición"],
+            fechaProximoSeguimiento: Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 10)),
             motivoProximoSeguimiento: "Control glucosa"
         )
     )
 }
 
+// MARK: - Contenido PDF del expediente
+
+struct ExpedientePDFContentView: View {
+    let paciente: Paciente
+
+    var consultasOrdenadas: [Consulta] {
+        paciente.consultas.sorted { $0.fecha > $1.fecha }
+    }
+
+    var medicamentosActivos: [MedicamentoPaciente] {
+        paciente.medicamentos.filter { $0.estaActivo }.sorted { $0.fechaInicio > $1.fechaInicio }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            PDFHeaderView(
+                titulo: "Expediente Clínico",
+                subtitulo: "Cáritas — Brigadas de salud"
+            )
+
+            // Datos del paciente
+            PDFSectionView(titulo: "Datos del paciente") {
+                HStack(alignment: .top, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(paciente.nombreCompleto)
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(Color.caritasAzul)
+                        Text("Registrado \(paciente.fechaRegistro.formatted(date: .abbreviated, time: .omitted))")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Color.caritasGris)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 4) {
+                        pdfDatoFila(etiqueta: "Edad",      valor: "\(paciente.edad) años")
+                        pdfDatoFila(etiqueta: "Sexo",      valor: paciente.sexoPaciente.rawValue.capitalized)
+                        pdfDatoFila(etiqueta: "Municipio", valor: paciente.municipio ?? "—")
+                        pdfDatoFila(etiqueta: "Estado",    valor: paciente.estado ?? "—")
+                        if let tel = paciente.telefono {
+                            pdfDatoFila(etiqueta: "Tel.", valor: tel)
+                        }
+                    }
+                }
+                .padding(.horizontal, 32)
+                .padding(.bottom, 14)
+            }
+
+            // Condiciones crónicas
+            if !paciente.condicionesCronicas.isEmpty {
+                PDFSectionView(titulo: "Condiciones crónicas") {
+                    HStack(spacing: 8) {
+                        ForEach(paciente.condicionesCronicas, id: \.self) { condicion in
+                            Text(condicion)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(Color.caritasPrimario)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 4)
+                                .background(Color.caritasSuave)
+                                .clipShape(Capsule())
+                        }
+                    }
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, 12)
+                }
+            }
+
+            // Notas importantes
+            if let notas = paciente.notas, !notas.isEmpty {
+                PDFSectionView(titulo: "Notas importantes") {
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("⚠")
+                            .font(.system(size: 11))
+                        Text(notas)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color(hex: "#633806"))
+                    }
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, 12)
+                }
+            }
+
+            // Historial de consultas
+            PDFSectionView(titulo: "Historial de consultas (\(paciente.consultas.count))") {
+                if consultasOrdenadas.isEmpty {
+                    Text("Sin consultas registradas.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.caritasGris)
+                        .padding(.horizontal, 32)
+                        .padding(.bottom, 12)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(consultasOrdenadas) { consulta in
+                            pdfConsultaFila(consulta)
+                        }
+                    }
+                }
+            }
+
+            // Medicamentos activos
+            PDFSectionView(titulo: "Medicamentos activos (\(medicamentosActivos.count))") {
+                if medicamentosActivos.isEmpty {
+                    Text("Sin medicamentos activos.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.caritasGris)
+                        .padding(.horizontal, 32)
+                        .padding(.bottom, 12)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(medicamentosActivos) { med in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(med.nombre)
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(Color.caritasAzul)
+                                    if !med.indicacion.isEmpty {
+                                        Text(med.indicacion)
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(Color.caritasGris)
+                                    }
+                                }
+                                Spacer()
+                                Text("Desde \(med.fechaInicio.formatted(.dateTime.month(.abbreviated).year()))")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(Color.caritasGris)
+                            }
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 7)
+
+                            if med.id != medicamentosActivos.last?.id {
+                                Rectangle().fill(Color(.systemGray5)).frame(height: 0.5).padding(.leading, 32)
+                            }
+                        }
+                        Spacer().frame(height: 12)
+                    }
+                }
+            }
+
+            // Pie de página
+            HStack {
+                Text("Expediente generado por la app Cáritas")
+                    .font(.system(size: 9))
+                    .foregroundStyle(Color.caritasGris)
+                Spacer()
+                Text(Date().formatted(.dateTime.day().month().year().hour().minute()))
+                    .font(.system(size: 9))
+                    .foregroundStyle(Color.caritasGris)
+            }
+            .padding(.horizontal, 32)
+            .padding(.vertical, 16)
+        }
+        .background(Color.white)
+        .frame(width: 595)
+    }
+
+    private func pdfDatoFila(etiqueta: String, valor: String) -> some View {
+        HStack(spacing: 6) {
+            Text(etiqueta + ":")
+                .font(.system(size: 10))
+                .foregroundStyle(Color.caritasGris)
+            Text(valor)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(Color.caritasAzul)
+        }
+    }
+
+    @ViewBuilder
+    private func pdfConsultaFila(_ consulta: Consulta) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(consulta.fecha.formatted(date: .abbreviated, time: .omitted))
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Color.caritasAzul)
+                Text("·")
+                    .foregroundStyle(Color.caritasGris)
+                Text(consulta.tipoConsulta.rawValue)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.caritasPrimario)
+                if !consulta.lugar.isEmpty {
+                    Text("· \(consulta.lugar)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.caritasGris)
+                }
+                Spacer()
+                if !consulta.medico.isEmpty {
+                    Text(consulta.medico)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.caritasGris)
+                }
+            }
+
+            if !consulta.motivo.isEmpty {
+                pdfConsultaRenglon(etiqueta: "Motivo",      valor: consulta.motivo)
+            }
+            if !consulta.diagnostico.isEmpty {
+                pdfConsultaRenglon(etiqueta: "Diagnóstico", valor: consulta.diagnostico)
+            }
+            if !consulta.notasMedico.isEmpty {
+                pdfConsultaRenglon(etiqueta: "Notas",       valor: consulta.notasMedico)
+            }
+            if !consulta.medicamentos.isEmpty {
+                pdfConsultaRenglon(etiqueta: "Medicamentos", valor: consulta.medicamentos.joined(separator: ", "))
+            }
+        }
+        .padding(.horizontal, 32)
+        .padding(.vertical, 10)
+        .background(Color.white)
+
+        Rectangle().fill(Color(.systemGray5)).frame(height: 0.5).padding(.leading, 32)
+    }
+
+    private func pdfConsultaRenglon(etiqueta: String, valor: String) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Text(etiqueta + ":")
+                .font(.system(size: 9))
+                .foregroundStyle(Color.caritasGris)
+                .frame(width: 72, alignment: .leading)
+            Text(valor)
+                .font(.system(size: 9))
+                .foregroundStyle(Color.caritasAzul)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+#Preview("PDF Expediente") {
+    ScrollView {
+        ExpedientePDFContentView(
+            paciente: Paciente(
+                primerNombre: "Lupita",
+                primerApellido: "Torres",
+                notas: "Alergia a penicilina. No administrar derivados.",
+                fechaNacimiento: Calendar.current.date(from: DateComponents(year: 1992, month: 3, day: 12))!,
+                lugarNacimiento: "El Mezquital",
+                caritasId: "C-003",
+                sexoPaciente: .femenino,
+                telefono: "618 234 5678",
+                estado: "Durango",
+                municipio: "El Mezquital",
+                condicionesCronicas: ["Diabetes tipo 2", "Nutrición"],
+                fechaProximoSeguimiento: Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 10)),
+                motivoProximoSeguimiento: "Control glucosa"
+            )
+        )
+    }
+}

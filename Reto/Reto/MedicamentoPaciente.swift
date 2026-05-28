@@ -15,17 +15,26 @@ class MedicamentoPaciente {
     var fechaInicio: Date
     var fechaFin: Date?
 
+    // Additional DB fields (maps to recetas table)
+    var duracion: String?
+    var notasMedicamento: String?
+    var consulta: Consulta?
+
     init(
         nombre: String,
         indicacion: String,
         fechaInicio: Date,
-        fechaFin: Date? = nil
+        fechaFin: Date? = nil,
+        duracion: String? = nil,
+        notasMedicamento: String? = nil
     ) {
         self.idMedicamento = UUID()
         self.nombre = nombre
         self.indicacion = indicacion
         self.fechaInicio = fechaInicio
         self.fechaFin = fechaFin
+        self.duracion = duracion
+        self.notasMedicamento = notasMedicamento
     }
 
     var estaActivo: Bool {
