@@ -301,15 +301,7 @@ struct NuevaConsultaView: View {
             sexoPaciente: .femenino,
             telefono: "618 234 5678",
             estado: "Durango",
-            municipio: "El Mezquital",
-            condicionesCronicas: [
-                "Diabetes tipo 2",
-                "Nutrición"
-            ],
-            fechaProximoSeguimiento: Calendar.current.date(
-                from: DateComponents(year: 2026, month: 4, day: 10)
-            ),
-            motivoProximoSeguimiento: "Control glucosa"
+            municipio: "El Mezquital"
         )
     )
 }
