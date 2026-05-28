@@ -43,9 +43,10 @@ class Paciente {
             .compactMap { $0 }
             .joined(separator: " ")
     }
-    //var condicionesCronicas: [String]
+    var condicionesCronicas: [String]
     
-    
+    var fechaProximoSeguimiento: Date?
+    var motivoProximoSeguimiento: String?
 
     var edad: Int {
         Calendar.current.dateComponents([.year], from: fechaNacimiento, to: Date()).year ?? 0
@@ -63,7 +64,6 @@ class Paciente {
     
     
     init (
-    idPaciente: UUID = UUID(),
     primerNombre: String,
     segundoNombre: String? = nil,
     primerApellido: String,
@@ -77,12 +77,14 @@ class Paciente {
     telefono : String? = nil,
     estado : String? = nil ,
     municipio: String? = nil,
-    //condicionesCronicas : [String]
+    condicionesCronicas : [String],
+    fechaProximoSeguimiento: Date? = nil,
+    motivoProximoSeguimiento: String? = nil
 
         
         
     ){
-        self.idPaciente = idPaciente
+        self.idPaciente      = UUID()
         self.primerNombre    = primerNombre
         self.segundoNombre   = segundoNombre
         self.primerApellido  = primerApellido
@@ -97,7 +99,9 @@ class Paciente {
         self.telefono = telefono
         self.municipio = municipio
         self.estado = estado
-        //self.condicionesCronicas = condicionesCronicas
+        self.condicionesCronicas = condicionesCronicas
+        self.fechaProximoSeguimiento = fechaProximoSeguimiento
+        self.motivoProximoSeguimiento = motivoProximoSeguimiento
 
     }
     

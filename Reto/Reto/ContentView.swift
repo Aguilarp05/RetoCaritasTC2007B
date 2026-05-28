@@ -5,15 +5,69 @@
 //  Created by Juan Pablo Aguilar Varela on 08/04/26.
 //
 
+/*import SwiftUI
+import SwiftData
+
+struct ContentView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var items: [Item]
+
+    var body: some View {
+        
+        
+        NavigationSplitView {
+            List {
+                ForEach(items) { item in
+                    NavigationLink {
+                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
+                    } label: {
+                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+                    }
+                }
+                .onDelete(perform: deleteItems)
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    EditButton()
+                }
+                ToolbarItem {
+                    Button(action: addItem) {
+                        Label("Add Item", systemImage: "plus")
+                    }
+                }
+            }
+        } detail: {
+            Text("Select an item")
+        }
+        
+    }
+
+    private func addItem() {
+        withAnimation {
+            let newItem = Item(timestamp: Date())
+            modelContext.insert(newItem)
+        }
+    }
+
+    private func deleteItems(offsets: IndexSet) {
+        withAnimation {
+            for index in offsets {
+                modelContext.delete(items[index])
+            }
+        }
+    }
+}
+
+#Preview {
+    ContentView()
+        .modelContainer(for: Item.self, inMemory: true)
+}
+
+*/
 import SwiftUI
 import SwiftData
 
 struct ContentView: View {
-    @StateObject private var viewModel = CaritasSyncVM()
-
-    @Environment(\.modelContext) private var modelContext
-    @Query private var pacientes: [Paciente]
-
     private var pacienteDemo: Paciente {
         Paciente(
             primerNombre: "Lupita",
@@ -23,83 +77,46 @@ struct ContentView: View {
                 from: DateComponents(year: 1992, month: 3, day: 12)
             )!,
             lugarNacimiento: "El Mezquital",
-            caritasId: "C-003", 
+            caritasId: "C-003",
             sexoPaciente: .femenino,
             telefono: "618 234 5678",
             estado: "Durango",
-            municipio: "El Mezquital"
+            municipio: "El Mezquital",
+            condicionesCronicas: [
+                "Diabetes tipo 2",
+                "Nutrición"
+            ],
+            fechaProximoSeguimiento: Calendar.current.date(
+                from: DateComponents(year: 2026, month: 4, day: 10)
+            ),
+            motivoProximoSeguimiento: "Control glucosa"
         )
     }
 
     var body: some View {
         NavigationSplitView {
             List {
-                Section("Pantallas demo") {
-                    NavigationLink {
-                        NuevoPacienteView()
-                    } label: {
-                        Label("Nuevo paciente", systemImage: "person.badge.plus")
-                    }
-
-                    NavigationLink {
-                        ExpedientePacienteView(paciente: pacienteDemo)
-                    } label: {
-                        Label("Expediente demo", systemImage: "folder")
-                    }
-
-                    NavigationLink {
-                        NuevaConsultaView(paciente: pacienteDemo)
-                    } label: {
-                        Label("Nueva consulta demo", systemImage: "stethoscope")
-                    }
-
-                    NavigationLink {
-                        StatisticsDashboardView()
-                    } label: {
-                        Label("Estadísticas", systemImage: "chart.bar")
-                    }
+                NavigationLink {
+                    NuevoPacienteView()
+                } label: {
+                    Label("Nuevo paciente", systemImage: "person.badge.plus")
                 }
 
-                Section("Sincronización") {
-                    Button {
-                        Task {
-                            await viewModel.syncPacientesFromServer(
-                                context: modelContext
-                            )
-                        }
-                    } label: {
-                        Label(
-                            "Sincronizar pacientes",
-                            systemImage: "arrow.triangle.2.circlepath"
-                        )
-                    }
-
-                    if !viewModel.mensajeError.isEmpty {
-                        Text(viewModel.mensajeError)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
+                NavigationLink {
+                    ExpedientePacienteView(paciente: pacienteDemo)
+                } label: {
+                    Label("Expediente del paciente", systemImage: "folder")
                 }
 
-                Section("Pacientes de la BD") {
-                    if pacientes.isEmpty {
-                        Text("No hay pacientes sincronizados.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(pacientes) { paciente in
-                            NavigationLink {
-                                ExpedientePacienteView(paciente: paciente)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(paciente.nombreCompleto)
-
-                                    Text(paciente.caritasId)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
+                NavigationLink {
+                    NuevaConsultaView(paciente: pacienteDemo)
+                } label: {
+                    Label("Nueva consulta demo", systemImage: "stethoscope")
+                }
+                NavigationLink {
+                    StatisticsDashboardView()
+                } label: {
+                    Label("Estadisticas", systemImage: "chart.bar")
                 }
             }
             .navigationTitle("Reto")
@@ -113,7 +130,7 @@ struct ContentView: View {
                     .font(.title2)
                     .fontWeight(.semibold)
 
-                Text("TEMPORAL")
+                Text("TEMPORAL ")
                     .foregroundStyle(.secondary)
             }
         }
@@ -132,3 +149,4 @@ struct ContentView: View {
             inMemory: true
         )
 }
+
