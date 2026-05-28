@@ -44,25 +44,36 @@ class Paciente {
             .joined(separator: " ")
     }
     var condicionesCronicas: [String]
-    
+
     var fechaProximoSeguimiento: Date?
     var motivoProximoSeguimiento: String?
+
+    // Additional DB fields
+    var domicilio: String?
+    var colonia: String?
+    var numIntegrantesFamilia: Int?
+    var ingresosMensuales: String?
+    var gradoEstudios: String?
+    var tieneIMSS: Bool
 
     var edad: Int {
         Calendar.current.dateComponents([.year], from: fechaNacimiento, to: Date()).year ?? 0
     }
-    
-    
+
+
     @Relationship(deleteRule: .cascade)
     var consultas: [Consulta] = []
-    
-    
+
+
     @Relationship(deleteRule: .cascade)
     var medicamentos: [MedicamentoPaciente] = []
 
+    @Relationship(deleteRule: .cascade)
+    var consentimientos: [ConsentimientoPrivacidad] = []
 
-    
-    
+
+
+
     init (
     primerNombre: String,
     segundoNombre: String? = nil,
@@ -79,10 +90,16 @@ class Paciente {
     municipio: String? = nil,
     condicionesCronicas : [String],
     fechaProximoSeguimiento: Date? = nil,
-    motivoProximoSeguimiento: String? = nil
+    motivoProximoSeguimiento: String? = nil,
+    domicilio: String? = nil,
+    colonia: String? = nil,
+    numIntegrantesFamilia: Int? = nil,
+    ingresosMensuales: String? = nil,
+    gradoEstudios: String? = nil,
+    tieneIMSS: Bool = false
 
-        
-        
+
+
     ){
         self.idPaciente      = UUID()
         self.primerNombre    = primerNombre
@@ -102,6 +119,12 @@ class Paciente {
         self.condicionesCronicas = condicionesCronicas
         self.fechaProximoSeguimiento = fechaProximoSeguimiento
         self.motivoProximoSeguimiento = motivoProximoSeguimiento
+        self.domicilio = domicilio
+        self.colonia = colonia
+        self.numIntegrantesFamilia = numIntegrantesFamilia
+        self.ingresosMensuales = ingresosMensuales
+        self.gradoEstudios = gradoEstudios
+        self.tieneIMSS = tieneIMSS
 
     }
     

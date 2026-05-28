@@ -13,6 +13,13 @@ struct RetoApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
+            Paciente.self,
+            Consulta.self,
+            MedicamentoPaciente.self,
+            Locacion.self,
+            Personal.self,
+            Jornada.self,
+            ConsentimientoPrivacidad.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
