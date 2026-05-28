@@ -74,6 +74,7 @@ struct VistaPacienteRegistrado: View {
 
                         Text(paciente.caritasId)
 
+                        Text("Paciente activa")
 
                         Text("Datos personales")
                             .font(.headline)
@@ -95,8 +96,8 @@ struct VistaPacienteRegistrado: View {
                                     .stroke(Color.gray, lineWidth: 1)
                             )
 
-                        //Text("Condiciones crónicas")
-                           // .font(.headline)
+                        Text("Condiciones crónicas")
+                            .font(.headline)
             
         }
         .padding(24)
@@ -391,7 +392,7 @@ struct DatoClinicoBloque: View {
 struct MedicamentosPacienteView: View {
     let medicamentos: [MedicamentoPaciente]
 
-    var medicamentosIndicados: [MedicamentoPaciente] {
+    var medicamentosActivos: [MedicamentoPaciente] {
         medicamentos
             .filter { $0.estaActivo }
             .sorted { $0.fechaInicio > $1.fechaInicio }
@@ -407,8 +408,8 @@ struct MedicamentosPacienteView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 SeccionMedicamentosView(
-                    titulo: "Medicamentos indicados",
-                    medicamentos: medicamentosIndicados
+                    titulo: "Medicamentos activos",
+                    medicamentos: medicamentosActivos
                 )
 
                 SeccionMedicamentosView(
@@ -587,7 +588,15 @@ struct EventoLineaTiempoView: View {
             telefono: "618 234 5678",
             estado: "Durango",
             municipio: "El Mezquital",
-                    )
+            condicionesCronicas: [
+                "Diabetes tipo 2",
+                "Nutrición"
+            ],
+            fechaProximoSeguimiento: Calendar.current.date(
+                from: DateComponents(year: 2026, month: 4, day: 10)
+            ),
+            motivoProximoSeguimiento: "Control glucosa"
+        )
     )
 }
 
