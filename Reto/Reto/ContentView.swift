@@ -19,6 +19,7 @@ extension EnvironmentValues {
 struct ContentView: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var mostrarConfigJornada = false
+    @State private var seleccion: String = "dashboard"
 
     @Query(sort: \Jornada.fecha, order: .reverse) private var jornadas: [Jornada]
 
@@ -28,52 +29,19 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            List {
-                NavigationLink {
-                    DashboardView()
-                } label: {
-                    Label("Dashboard", systemImage: "square.grid.2x2")
-                }
-
-                NavigationLink {
-                    NuevoPacienteView()
-                } label: {
-                    Label("Nuevo paciente", systemImage: "person.badge.plus")
-                }
-
-                NavigationLink {
-                    HistorialJornadaView()
-                } label: {
-                    Label("Historial", systemImage: "list.bullet.clipboard")
-                }
-
-                NavigationLink {
-                    StatisticsDashboardView()
-                } label: {
-                    Label("Estadísticas", systemImage: "chart.bar")
-                }
-
-                NavigationLink {
-                    PersonalView()
-                } label: {
-                    Label("Personal médico", systemImage: "person.2.badge.gearshape")
-                }
-
-                Divider()
-
-                Button {
-                    mostrarConfigJornada = true
-                } label: {
-                    Label(
-                        jornadaActiva != nil ? "Jornada activa" : "Configurar jornada",
-                        systemImage: jornadaActiva != nil ? "calendar.badge.checkmark" : "calendar.badge.plus"
-                    )
-                    .foregroundStyle(jornadaActiva != nil ? Color.caritasPrimario : Color.caritasAcento)
-                }
-            }
-            .navigationTitle("Cáritas")
+            SidebarMenuView(
+                seleccion: $seleccion,
+                jornadaActiva: jornadaActiva,
+                onConfigurarJornada: { mostrarConfigJornada = true }
+            )
         } detail: {
-            DashboardView()
+            switch seleccion {
+            case "nuevo":        NuevoPacienteView()
+            case "historial":    HistorialJornadaView()
+            case "estadisticas": StatisticsDashboardView()
+            case "personal":     PersonalView()
+            default:             DashboardView()
+            }
         }
         .environment(\.toggleSidebar, {
             withAnimation {
@@ -90,6 +58,165 @@ struct ContentView: View {
         }
     }
 }
+
+// MARK: - Sidebar menu
+
+struct SidebarMenuView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Binding var seleccion: String
+    let jornadaActiva: Jornada?
+    let onConfigurarJornada: () -> Void
+
+    @State private var confirmarCierre = false
+
+    private let items: [(id: String, icono: String, label: String)] = [
+        ("dashboard",    "square.grid.2x2.fill",          "Dashboard"),
+        ("nuevo",        "person.badge.plus",              "Nuevo paciente"),
+        ("historial",    "list.bullet.clipboard.fill",     "Historial"),
+        ("estadisticas", "chart.bar.fill",                 "Estadísticas"),
+        ("personal",     "person.2.badge.gearshape.fill",  "Personal médico"),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+
+            // Header
+            Image("Logotipo Cáritas de Monterrey, A.B.P.")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 72)
+                .padding(.horizontal, 20)
+                .padding(.top, 24)
+                .padding(.bottom, 20)
+
+            Rectangle()
+                .fill(Color.white.opacity(0.1))
+                .frame(height: 1)
+                .padding(.bottom, 16)
+
+            // Items de navegación
+            VStack(spacing: 2) {
+                ForEach(items, id: \.id) { item in
+                    SidebarItemRow(id: item.id, icono: item.icono, label: item.label, seleccion: $seleccion)
+                }
+            }
+            .padding(.horizontal, 12)
+
+            Spacer()
+
+            // Separador inferior
+            Rectangle()
+                .fill(Color.white.opacity(0.1))
+                .frame(height: 1)
+                .padding(.bottom, 12)
+
+            // Botón de jornada
+            Button {
+                if jornadaActiva != nil {
+                    confirmarCierre = true
+                } else {
+                    onConfigurarJornada()
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: jornadaActiva != nil ? "calendar.badge.checkmark" : "calendar.badge.plus")
+                        .font(.system(size: 15, weight: .medium))
+                        .frame(width: 22)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(jornadaActiva != nil ? "Jornada activa" : "Configurar jornada")
+                            .font(.subheadline).fontWeight(.medium)
+                        if let j = jornadaActiva, let municipio = j.locacion?.municipio {
+                            Text(municipio)
+                                .font(.caption2)
+                                .opacity(0.75)
+                        }
+                    }
+                    Spacer()
+                    Circle()
+                        .fill(jornadaActiva != nil ? .green : Color.caritasAcento)
+                        .frame(width: 7, height: 7)
+                }
+                .foregroundStyle(jornadaActiva != nil ? Color.caritasPrimario : Color.caritasAcento)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 13)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill((jornadaActiva != nil ? Color.caritasPrimario : Color.caritasAcento).opacity(0.15))
+                )
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 20)
+            .confirmationDialog(
+                "¿Cerrar la jornada de hoy?",
+                isPresented: $confirmarCierre,
+                titleVisibility: .visible
+            ) {
+                Button("Cerrar jornada", role: .destructive) {
+                    cerrarJornada()
+                }
+                Button("Cancelar", role: .cancel) {}
+            } message: {
+                if let j = jornadaActiva {
+                    let lugar = [j.locacion?.comunidad, j.locacion?.municipio]
+                        .compactMap { $0 }.joined(separator: ", ")
+                    Text("Se registrará el cierre de la jornada en \(lugar).")
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .background(Color.caritasAzul.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private func cerrarJornada() {
+        guard let jornada = jornadaActiva else { return }
+        jornada.horaFin = Date()
+        try? modelContext.save()
+    }
+}
+
+// MARK: - Fila de item del sidebar
+
+struct SidebarItemRow: View {
+    let id: String
+    let icono: String
+    let label: String
+    @Binding var seleccion: String
+
+    private var isSelected: Bool { seleccion == id }
+
+    var body: some View {
+        Button { seleccion = id } label: {
+            HStack(spacing: 12) {
+                Image(systemName: icono)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(isSelected ? Color.caritasPrimario : .white.opacity(0.5))
+                    .frame(width: 22)
+                Text(label)
+                    .font(.subheadline)
+                    .fontWeight(isSelected ? .semibold : .regular)
+                    .foregroundStyle(isSelected ? .white : .white.opacity(0.5))
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.caritasPrimario.opacity(0.18))
+                        .overlay(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.caritasPrimario)
+                                .frame(width: 3)
+                                .padding(.vertical, 8)
+                        }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Preview
 
 #Preview {
     ContentView()

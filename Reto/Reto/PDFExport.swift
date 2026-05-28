@@ -43,16 +43,11 @@ struct PDFHeaderView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(Color.caritasPrimario)
-                        .frame(width: 10, height: 10)
-                    Text("CÁRITAS")
-                        .font(.system(size: 13, weight: .black))
-                        .foregroundStyle(Color.caritasPrimario)
-                        .kerning(2)
-                }
+            HStack(alignment: .center) {
+                Image("Logotipo Cáritas de Monterrey, A.B.P.")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 40)
                 Spacer()
                 Text(Date().formatted(.dateTime.day().month(.wide).year()))
                     .font(.system(size: 11))

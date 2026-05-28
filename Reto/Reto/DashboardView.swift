@@ -47,8 +47,7 @@ struct DashboardView: View {
     }
 
     private var ultimosPacientes: [Paciente] {
-        let hoy = Calendar.current.startOfDay(for: Date())
-        return Array(pacientes.filter { $0.fechaRegistro >= hoy }.prefix(5))
+        Array(pacientes.prefix(5))
     }
 
     var body: some View {
@@ -66,7 +65,7 @@ struct DashboardView: View {
 
                     if let jornada = jornadaActiva {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Jornada de hoy")
+                            Text("Brigada de hoy")
                                 .font(.caption)
                                 .foregroundStyle(Color.caritasGris)
                             Text([jornada.locacion?.comunidad, jornada.locacion?.municipio]
@@ -97,11 +96,11 @@ struct DashboardView: View {
                         }
                     } else {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Sin jornada activa")
+                            Text("Sin brigada activa")
                                 .font(.title2)
                                 .fontWeight(.bold)
                                 .foregroundStyle(Color.caritasAzul)
-                            Text("Configura la jornada para comenzar")
+                            Text("Configura la brigada para comenzar")
                                 .font(.subheadline)
                                 .foregroundStyle(Color.caritasGris)
                         }
@@ -116,16 +115,17 @@ struct DashboardView: View {
                 Divider()
 
                 // Total de pacientes
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                HStack(alignment: .center, spacing: 10) {
                     Text("\(totalPacientes)")
-                        .font(.system(size: 56, weight: .bold))
+                        .font(.title)
+                        .fontWeight(.bold)
                         .foregroundStyle(Color.caritasPrimario)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("pacientes")
+                        Text("Pacientes")
                             .font(.title3)
                             .fontWeight(.medium)
                             .foregroundStyle(Color.caritasAzul)
-                        Text("atendidos hoy")
+                        Text("Atendidos hoy")
                             .font(.subheadline)
                             .foregroundStyle(Color.caritasGris)
                     }
