@@ -7,7 +7,7 @@ import SwiftData
 private enum Campo: Hashable {
     case curp, busqueda
     case primerNombre, segundoNombre, primerApellido, segundoApellido, telefono, comunidad
-    case peso, talla, presionArterial, pulso, frecuenciaCardiaca, frecuenciaResp, perimetroAbdominal, numIntegrantes
+    case peso, talla, presionSistolica, presionDiastolica, pulso, frecuenciaCardiaca, frecuenciaResp, perimetroAbdominal
 }
 
 struct NuevoPacienteView: View {
@@ -15,7 +15,12 @@ struct NuevoPacienteView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.toggleSidebar) private var toggleSidebar
     @Query(sort: \Personal.nombrePersonal) private var todoElPersonal: [Personal]
+    @Query(sort: \Jornada.fecha, order: .reverse) private var jornadas: [Jornada]
     @FocusState private var foco: Campo?
+
+    private var jornadaActiva: Jornada? {
+        jornadas.first { Calendar.current.isDateInToday($0.fecha) && $0.horaFin == nil }
+    }
 
     @State private var pasoActual = 0
     @State private var nombreGuardado = ""
@@ -53,17 +58,19 @@ struct NuevoPacienteView: View {
     @State private var servicioSeleccionado  = "Consulta general"
     @State private var medicoSeleccionado    = ""
     @State private var motivoConsulta        = ""
+    @State private var notasMedico           = ""
     @State private var tieneIMSS             = ""
 
     // Paso 4 — Signos vitales + socioeconómico
     @State private var peso               = ""
     @State private var talla              = ""
-    @State private var presionArterial    = ""
+    @State private var presionSistolica   = ""
+    @State private var presionDiastolica  = ""
     @State private var pulso              = ""
     @State private var frecuenciaCardiaca = ""
     @State private var frecuenciaResp     = ""
     @State private var perimetroAbdominal = ""
-    @State private var numIntegrantes     = ""
+    @State private var numIntegrantes     = 0
     @State private var gradoEstudios      = ""
     @State private var ingresosMensuales  = ""
 
@@ -89,15 +96,18 @@ struct NuevoPacienteView: View {
         case "identificacion":
             return !tipoPaciente.isEmpty
         case "datos_personales":
+            let telefonoOk = telefono.isEmpty || telefono.count == 10
             return !primerNombre.trimmingCharacters(in: .whitespaces).isEmpty &&
                    !primerApellido.trimmingCharacters(in: .whitespaces).isEmpty &&
                    sexo != .noDefinido &&
-                   !municipioSeleccionado.isEmpty
+                   !municipioSeleccionado.isEmpty &&
+                   telefonoOk
         case "consulta":
             return !motivoConsulta.trimmingCharacters(in: .whitespaces).isEmpty && !medicoSeleccionado.isEmpty
         case "signos_vitales":
             return !peso.isEmpty && !talla.isEmpty &&
-                   !presionArterial.isEmpty && !pulso.isEmpty &&
+                   !presionSistolica.isEmpty && !presionDiastolica.isEmpty &&
+                   !pulso.isEmpty &&
                    !frecuenciaCardiaca.isEmpty && !frecuenciaResp.isEmpty &&
                    !perimetroAbdominal.isEmpty
         case "privacidad":
@@ -424,6 +434,10 @@ struct NuevoPacienteView: View {
                   keyboard: .phonePad,
                   campoFoco: .telefono,
                   siguiente: .comunidad)
+            .onChange(of: telefono) { _, nuevo in
+                let soloDigitos = nuevo.filter(\.isNumber)
+                telefono = String(soloDigitos.prefix(10))
+            }
 
             separador("Lugar de residencia")
 
@@ -524,10 +538,25 @@ struct NuevoPacienteView: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
+                Text("Notas del médico")
+                    .font(.caption)
+                    .foregroundStyle(Color.caritasGris)
+                TextField("Observaciones adicionales (opcional)", text: $notasMedico, axis: .vertical)
+                    .lineLimit(3...6)
+                    .padding(12)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .font(.subheadline)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
                 Text("Médico / Personal asignado *")
                     .font(.caption)
                     .foregroundStyle(Color.caritasGris)
-                let activos = todoElPersonal.filter { $0.esActivo }
+                let base = jornadaActiva.map { $0.personal } ?? todoElPersonal.filter { $0.esActivo }
+                let activos = base.filter { p in
+                    p.areasDeServicio.isEmpty || p.areasDeServicio.contains(servicioSeleccionado)
+                }
                 if activos.isEmpty {
                     Text("Sin personal registrado — ve a 'Personal medico' para dar de alta al equipo")
                         .font(.caption)
@@ -583,12 +612,38 @@ struct NuevoPacienteView: View {
                 campo("Peso (kg)", placeholder: "Ej. 65.5", text: $peso,
                       keyboard: .decimalPad, campoFoco: .peso, siguiente: .talla)
                 campo("Talla (cm)", placeholder: "Ej. 165", text: $talla,
-                      keyboard: .decimalPad, campoFoco: .talla, siguiente: .presionArterial)
+                      keyboard: .decimalPad, campoFoco: .talla, siguiente: .presionSistolica)
             }
 
             HStack(spacing: 12) {
-                campo("Presión arterial", placeholder: "Ej. 120/80", text: $presionArterial,
-                      campoFoco: .presionArterial, siguiente: .pulso)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Presión arterial")
+                        .font(.caption)
+                        .foregroundStyle(Color.caritasGris)
+                    HStack(spacing: 6) {
+                        TextField("Sist.", text: $presionSistolica)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.center)
+                            .padding(12)
+                            .background(Color(.systemGray6))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .font(.subheadline)
+                            .focused($foco, equals: .presionSistolica)
+                            .onSubmit { foco = .presionDiastolica }
+                        Text("/")
+                            .font(.title3)
+                            .foregroundStyle(Color.caritasGris)
+                        TextField("Diast.", text: $presionDiastolica)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.center)
+                            .padding(12)
+                            .background(Color(.systemGray6))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .font(.subheadline)
+                            .focused($foco, equals: .presionDiastolica)
+                            .onSubmit { foco = .pulso }
+                    }
+                }
                 campo("Pulso (lpm)", placeholder: "Ej. 72", text: $pulso,
                       keyboard: .numberPad, campoFoco: .pulso, siguiente: .frecuenciaCardiaca)
             }
@@ -601,13 +656,37 @@ struct NuevoPacienteView: View {
             }
 
             campo("Perímetro abdominal (cm)", placeholder: "Ej. 85", text: $perimetroAbdominal,
-                  keyboard: .decimalPad, campoFoco: .perimetroAbdominal, siguiente: .numIntegrantes)
+                  keyboard: .decimalPad, campoFoco: .perimetroAbdominal, siguiente: nil)
 
             separador("Datos socioeconómicos")
 
             HStack(alignment: .top, spacing: 12) {
-                campo("Integrantes de la familia", placeholder: "Ej. 4", text: $numIntegrantes,
-                      keyboard: .numberPad, campoFoco: .numIntegrantes, siguiente: nil)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Integrantes de la familia")
+                        .font(.caption)
+                        .foregroundStyle(Color.caritasGris)
+                    HStack(spacing: 12) {
+                        Button { if numIntegrantes > 0 { numIntegrantes -= 1 } } label: {
+                            Image(systemName: "minus")
+                                .frame(width: 40, height: 40)
+                                .background(Color(.systemGray6))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .foregroundStyle(Color.caritasAzul)
+                        }
+                        Text("\(numIntegrantes)")
+                            .font(.subheadline).fontWeight(.medium)
+                            .frame(minWidth: 32)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(Color.caritasAzul)
+                        Button { numIntegrantes += 1 } label: {
+                            Image(systemName: "plus")
+                                .frame(width: 40, height: 40)
+                                .background(Color(.systemGray6))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .foregroundStyle(Color.caritasAzul)
+                        }
+                    }
+                }
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Grado de estudios")
@@ -780,7 +859,7 @@ struct NuevoPacienteView: View {
             estado:                estadoSeleccionado.isEmpty ? nil : estadoSeleccionado,
             municipio:             municipioSeleccionado.isEmpty ? nil : municipioSeleccionado,
             condicionesCronicas:   [],
-            numIntegrantesFamilia: Int(numIntegrantes),
+            numIntegrantesFamilia: numIntegrantes == 0 ? nil : numIntegrantes,
             ingresosMensuales:     ingresosMensuales.isEmpty ? nil : ingresosMensuales,
             gradoEstudios:         gradoEstudios.isEmpty ? nil : gradoEstudios,
             tieneIMSS:             tieneIMSS == "si"
@@ -793,13 +872,13 @@ struct NuevoPacienteView: View {
             lugar:                  comunidad,
             motivo:                 motivoConsulta,
             diagnostico:            "",
-            notasMedico:            "",
+            notasMedico:            notasMedico,
             medico:                 medicoSeleccionado,
             tipoPaciente:           tipoRegistro,
             peso:                   Double(peso),
             talla:                  Double(talla),
             perimetroAbdominal:     Double(perimetroAbdominal),
-            presionArterial:        presionArterial.isEmpty ? nil : presionArterial,
+            presionArterial:        (presionSistolica.isEmpty || presionDiastolica.isEmpty) ? nil : "\(presionSistolica)/\(presionDiastolica)",
             pulso:                  Int(pulso),
             frecuenciaCardiaca:     Int(frecuenciaCardiaca),
             frecuenciaRespiratoria: Int(frecuenciaResp)
@@ -823,10 +902,10 @@ struct NuevoPacienteView: View {
         fechaNacimiento = Date(); sexo = .noDefinido; telefono = ""
         estadoSeleccionado = "Nuevo León"; municipioSeleccionado = ""; comunidad = ""
         servicioSeleccionado = "Consulta general"; medicoSeleccionado = ""
-        motivoConsulta = ""; tieneIMSS = ""
-        peso = ""; talla = ""; presionArterial = ""; pulso = ""
+        motivoConsulta = ""; notasMedico = ""; tieneIMSS = ""
+        peso = ""; talla = ""; presionSistolica = ""; presionDiastolica = ""; pulso = ""
         frecuenciaCardiaca = ""; frecuenciaResp = ""; perimetroAbdominal = ""
-        numIntegrantes = ""; gradoEstudios = ""; ingresosMensuales = ""
+        numIntegrantes = 0; gradoEstudios = ""; ingresosMensuales = ""
         aceptaPrivacidad = false; mostrarPDF = false; trazos = []
     }
 

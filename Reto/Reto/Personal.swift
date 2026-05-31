@@ -9,6 +9,7 @@ class Personal {
     var apellidosPersonal: String
     var sexoPersonal: Sexo
     var especialidad: String
+    var areasDeServicio: [String]
     var matricula: String?            // Cédula profesional — nil si es estudiante/practicante
     var esActivo: Bool
     var fechaCreacionPersonal: Date
@@ -25,6 +26,7 @@ class Personal {
         apellidosPersonal: String,
         sexoPersonal: Sexo,
         especialidad: String,
+        areasDeServicio: [String] = [],
         matricula: String? = nil
     ) {
         self.idPersonal            = UUID()
@@ -33,6 +35,7 @@ class Personal {
         self.apellidosPersonal     = apellidosPersonal
         self.sexoPersonal          = sexoPersonal
         self.especialidad          = especialidad
+        self.areasDeServicio       = areasDeServicio
         self.matricula             = (matricula?.trimmingCharacters(in: .whitespaces).isEmpty == false) ? matricula : nil
         self.esActivo              = true
         self.fechaCreacionPersonal = Date()

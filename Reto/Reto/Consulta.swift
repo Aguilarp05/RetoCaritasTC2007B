@@ -52,6 +52,7 @@ class Consulta {
 
     var jornada: Jornada?
     var personalMedico: Personal?
+    var sincronizado: Bool?
 
     init(
         tipoConsulta: TipoConsulta,

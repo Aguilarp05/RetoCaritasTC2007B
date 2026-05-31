@@ -11,6 +11,11 @@ struct MedicamentoTemporal: Identifiable {
 struct NuevaConsultaView: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Personal.nombrePersonal) private var todoElPersonal: [Personal]
+    @Query(sort: \Jornada.fecha, order: .reverse) private var jornadas: [Jornada]
+
+    private var jornadaActiva: Jornada? {
+        jornadas.first { Calendar.current.isDateInToday($0.fecha) && $0.horaFin == nil }
+    }
 
     let paciente: Paciente
 
@@ -30,7 +35,8 @@ struct NuevaConsultaView: View {
     @State private var peso = ""
     @State private var talla = ""
     @State private var perimetroAbdominal = ""
-    @State private var presionArterial = ""
+    @State private var presionSistolica = ""
+    @State private var presionDiastolica = ""
     @State private var pulso = ""
     @State private var frecuenciaCardiaca = ""
     @State private var frecuenciaRespiratoria = ""
@@ -45,9 +51,22 @@ struct NuevaConsultaView: View {
     @State private var tipoConsulta: TipoConsulta = .consultaGeneral
 
     private var puedeGuardar: Bool {
-        !motivo.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !diagnostico.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !medico.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let medicoOk = !medico.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        switch tipoConsulta {
+        case .consultaGeneral:
+            return medicoOk &&
+                   !motivo.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                   !diagnostico.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .entregaMedicamentos:
+            return medicoOk &&
+                   !motivo.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .optometrista:
+            return medicoOk &&
+                   !diagnosticoOptometria.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .dental:
+            return medicoOk &&
+                   !servicioDental.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
     }
 
     private var puedeAgregarMedicamento: Bool {
@@ -113,7 +132,10 @@ struct NuevaConsultaView: View {
                                 Text("Médico / Personal")
                                     .font(.caption)
                                     .foregroundStyle(Color.caritasGris)
-                                let activos = todoElPersonal.filter { $0.esActivo }
+                                let base = jornadaActiva.map { $0.personal } ?? todoElPersonal.filter { $0.esActivo }
+                let activos = base.filter { p in
+                    p.areasDeServicio.isEmpty || p.areasDeServicio.contains(tipoConsulta.rawValue)
+                }
                                 if activos.isEmpty {
                                     TextField("Nombre del médico", text: $medico)
                                         .padding(12)
@@ -149,6 +171,11 @@ struct NuevaConsultaView: View {
             .colorScheme(.light)
             .navigationTitle("Nueva consulta")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                if lugar.isEmpty, let loc = jornadaActiva?.locacion {
+                    lugar = [loc.municipio, loc.comunidad].compactMap { $0 }.joined(separator: ", ")
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancelar") { dismiss() }
@@ -274,7 +301,30 @@ struct NuevaConsultaView: View {
                     campo("Talla (cm)", placeholder: "Ej. 165", texto: $talla)
                 }
                 HStack(spacing: 12) {
-                    campo("Presión arterial", placeholder: "Ej. 120/80", texto: $presionArterial)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Presión arterial")
+                            .font(.caption)
+                            .foregroundStyle(Color.caritasGris)
+                        HStack(spacing: 6) {
+                            TextField("Sist.", text: $presionSistolica)
+                                .keyboardType(.numberPad)
+                                .multilineTextAlignment(.center)
+                                .padding(12)
+                                .background(Color(.systemGray6))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .font(.subheadline)
+                            Text("/")
+                                .font(.title3)
+                                .foregroundStyle(Color.caritasGris)
+                            TextField("Diast.", text: $presionDiastolica)
+                                .keyboardType(.numberPad)
+                                .multilineTextAlignment(.center)
+                                .padding(12)
+                                .background(Color(.systemGray6))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .font(.subheadline)
+                        }
+                    }
                     campo("Pulso (lpm)", placeholder: "Ej. 72", texto: $pulso)
                 }
                 HStack(spacing: 12) {
@@ -437,7 +487,7 @@ struct NuevaConsultaView: View {
             peso:                  Double(peso),
             talla:                 Double(talla),
             perimetroAbdominal:    Double(perimetroAbdominal),
-            presionArterial:       presionArterial.isEmpty ? nil : presionArterial,
+            presionArterial:       (presionSistolica.isEmpty || presionDiastolica.isEmpty) ? nil : "\(presionSistolica)/\(presionDiastolica)",
             pulso:                 Int(pulso),
             frecuenciaCardiaca:    Int(frecuenciaCardiaca),
             frecuenciaRespiratoria: Int(frecuenciaRespiratoria),

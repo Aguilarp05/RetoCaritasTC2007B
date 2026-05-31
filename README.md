@@ -9,13 +9,15 @@ La app acompaña al equipo médico durante una jornada: desde configurar el día
 ## Funcionalidades principales
 
 - **Jornada del día** — configuración de municipio, servicios disponibles y personal asignado
-- **Registro de pacientes** — wizard paso a paso con CURP opcional, datos personales, motivo de consulta, signos vitales, datos socioeconómicos y firma de aviso de privacidad
-- **Expediente del paciente** — historial de consultas, medicamentos activos, datos clínicos y línea de tiempo
-- **Nueva consulta** — seguimiento para pacientes ya registrados; campos adaptativos por tipo de consulta (general, dental, optometría, entrega de medicamentos)
-- **Personal médico** — alta, edición y baja de médicos, estudiantes y practicantes; CURP auto-generado a partir de los datos capturados
+- **Registro de pacientes** — wizard paso a paso con CURP opcional, datos personales, motivo de consulta, notas del médico, signos vitales (presión arterial con campos sistólica/diastólica separados, integrantes de familia con stepper), datos socioeconómicos y firma de aviso de privacidad
+- **Expediente del paciente** — historial de consultas, medicamentos activos, datos clínicos (IMC calculado automáticamente) y línea de tiempo; todo conectado a SwiftData
+- **Nueva consulta** — seguimiento para pacientes ya registrados; validación adaptativa por tipo de consulta (general, dental, optometría, entrega de medicamentos); lugar auto-relleno desde la jornada activa
+- **Personal médico** — vista dividida con lista y perfil completo (CURP, cédula, título profesional, áreas de servicio, estadísticas); cada doctor puede tener múltiples áreas de servicio para rotación entre brigadas; alta, edición y baja con CURP auto-generado
+- **Filtro de médicos por jornada y servicio** — al registrar una consulta solo aparecen los médicos asignados a la jornada activa que cubren el servicio seleccionado
 - **Dashboard** — resumen del día con conteo de pacientes, disponibilidad de servicios y últimos 5 atendidos
 - **Historial** — lista completa de pacientes de la jornada con acceso al expediente
-- **Estadísticas** — métricas de la brigada
+- **Estadísticas** — métricas reales desde SwiftData: pacientes hoy, jornadas, comunidades visitadas, distribución por sexo/edad, registros por hora, diagnósticos frecuentes y pacientes por tipo de servicio
+- **Sincronización** — envío de pacientes, consultas y medicamentos al backend FastAPI cuando hay conexión a red
 
 ## Stack técnico
 
@@ -24,6 +26,7 @@ La app acompaña al equipo médico durante una jornada: desde configurar el día
 | Lenguaje | Swift 5.9+ |
 | UI | SwiftUI |
 | Persistencia | SwiftData |
+| Backend | FastAPI + MySQL (VM escolar, requiere VPN) |
 | Dependencias externas | Ninguna |
 | Target | iPadOS 17+ |
 | Orientación | Landscape (NavigationSplitView) |
@@ -37,6 +40,7 @@ Reto/
         ├── RetoApp.swift   ← ModelContainer y entry point
         ├── ContentView.swift
         ├── Colores.swift   ← design tokens (caritasPrimario, caritasAcento, ...)
+        ├── CaritasSyncVM.swift  ← lógica de sincronización con backend
         ├── *.swift         ← modelos SwiftData y vistas
         └── PDFExport.swift ← generación de PDF con ImageRenderer
 ```

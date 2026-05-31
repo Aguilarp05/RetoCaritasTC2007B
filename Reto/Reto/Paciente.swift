@@ -55,6 +55,7 @@ class Paciente {
     var ingresosMensuales: String?
     var gradoEstudios: String?
     var tieneIMSS: Bool
+    var sincronizado: Bool?
 
     var edad: Int {
         Calendar.current.dateComponents([.year], from: fechaNacimiento, to: Date()).year ?? 0
@@ -125,7 +126,7 @@ class Paciente {
         self.ingresosMensuales = ingresosMensuales
         self.gradoEstudios = gradoEstudios
         self.tieneIMSS = tieneIMSS
-
+        self.sincronizado = false
     }
     
 }

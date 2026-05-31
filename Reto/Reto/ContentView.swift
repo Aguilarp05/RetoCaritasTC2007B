@@ -17,6 +17,8 @@ extension EnvironmentValues {
 // MARK: - ContentView
 
 struct ContentView: View {
+    @StateObject private var syncVM = CaritasSyncVM()
+    @Environment(\.modelContext) private var modelContext
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var mostrarConfigJornada = false
     @State private var seleccion: String = "dashboard"
@@ -34,6 +36,7 @@ struct ContentView: View {
                 jornadaActiva: jornadaActiva,
                 onConfigurarJornada: { mostrarConfigJornada = true }
             )
+            .environmentObject(syncVM)
         } detail: {
             switch seleccion {
             case "nuevo":        NuevoPacienteView()
@@ -56,6 +59,9 @@ struct ContentView: View {
                 mostrarConfigJornada = true
             }
         }
+        .task {
+            syncVM.actualizarPendientes(context: modelContext)
+        }
     }
 }
 
@@ -63,6 +69,7 @@ struct ContentView: View {
 
 struct SidebarMenuView: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var syncVM: CaritasSyncVM
     @Binding var seleccion: String
     let jornadaActiva: Jornada?
     let onConfigurarJornada: () -> Void
@@ -103,6 +110,58 @@ struct SidebarMenuView: View {
             .padding(.horizontal, 12)
 
             Spacer()
+
+            // Botón de sincronización
+            Button {
+                Task { await syncVM.sincronizar(context: modelContext) }
+            } label: {
+                HStack(spacing: 12) {
+                    Group {
+                        if syncVM.estaSincronizando {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .tint(Color.caritasSuave)
+                        } else {
+                            Image(systemName: syncVM.isOffline ? "wifi.slash" : "arrow.triangle.2.circlepath")
+                                .font(.system(size: 15, weight: .medium))
+                        }
+                    }
+                    .frame(width: 22)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(syncVM.isOffline ? "Sin conexión" : "Sincronizar")
+                            .font(.subheadline).fontWeight(.medium)
+                        if syncVM.isOffline {
+                            Text("Los datos se guardan localmente")
+                                .font(.caption2).opacity(0.7)
+                        } else if let fecha = syncVM.ultimaSincronizacion {
+                            Text("Última: \(fecha.formatted(.dateTime.hour().minute()))")
+                                .font(.caption2).opacity(0.7)
+                        } else if syncVM.pendientesSincronizacion > 0 {
+                            Text(syncVM.desglosePendientes)
+                                .font(.caption2).opacity(0.7)
+                        }
+                    }
+
+                    Spacer()
+
+                    if !syncVM.isOffline && syncVM.pendientesSincronizacion > 0 {
+                        Text("\(syncVM.pendientesSincronizacion)")
+                            .font(.caption2).fontWeight(.bold)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Color.caritasAcento)
+                            .foregroundStyle(.white)
+                            .clipShape(Capsule())
+                    }
+                }
+                .foregroundStyle(syncVM.isOffline ? Color.white.opacity(0.35) : Color.caritasSuave)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 13)
+                .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.07)))
+            }
+            .disabled(syncVM.isOffline || syncVM.estaSincronizando)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
 
             // Separador inferior
             Rectangle()

@@ -271,9 +271,9 @@ struct ExpedientePacienteView: View {
         Group {
             switch seccionSeleccionada {
             case .historial:     HistorialPacienteView(consultas: paciente.consultas)
-            case .datosClinicos: DatosClinicosPacienteView()
+            case .datosClinicos: DatosClinicosPacienteView(paciente: paciente)
             case .medicamentos:  MedicamentosPacienteView(medicamentos: paciente.medicamentos)
-            case .lineaTiempo:   LineaTiempoPacienteView()
+            case .lineaTiempo:   LineaTiempoPacienteView(paciente: paciente)
             }
         }
     }
@@ -406,36 +406,111 @@ struct TarjetaConsultaView: View {
 // MARK: - Datos clínicos
 
 struct DatosClinicosPacienteView: View {
+    let paciente: Paciente
+
+    private var ultimaConsultaGeneral: Consulta? {
+        paciente.consultas
+            .filter { $0.tipoConsulta == .consultaGeneral }
+            .sorted { $0.fecha > $1.fecha }
+            .first
+    }
+
+    private var imcTexto: String? {
+        guard let c = ultimaConsultaGeneral,
+              let peso = c.peso, let talla = c.talla, talla > 0 else { return nil }
+        let tallaMts = talla / 100
+        let val = peso / (tallaMts * tallaMts)
+        let cat: String
+        switch val {
+        case ..<18.5: cat = "Bajo peso"
+        case 18.5..<25: cat = "Normal"
+        case 25..<30: cat = "Sobrepeso"
+        default: cat = "Obesidad"
+        }
+        return String(format: "%.1f — %@", val, cat)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                seccionHeader("Métricas")
 
-                VStack(spacing: 0) {
-                    filaClinica(titulo: "Tipo de sangre", valor: "O+")
-                    Divider().padding(.leading, 24)
-                    filaClinica(titulo: "Peso",           valor: "68 kg")
-                    Divider().padding(.leading, 24)
-                    filaClinica(titulo: "Estatura",       valor: "1.57 m")
-                    Divider().padding(.leading, 24)
-                    filaClinica(titulo: "IMC",            valor: "27.6 — Sobrepeso leve")
+                // Métricas de última consulta general
+                seccionHeader("Métricas — última consulta general")
+
+                if let c = ultimaConsultaGeneral {
+                    VStack(spacing: 0) {
+                        if let v = c.peso {
+                            filaClinica(titulo: "Peso", valor: String(format: "%.1f kg", v))
+                            Divider().padding(.leading, 24)
+                        }
+                        if let v = c.talla {
+                            filaClinica(titulo: "Talla", valor: String(format: "%.1f cm", v))
+                            Divider().padding(.leading, 24)
+                        }
+                        if let v = imcTexto {
+                            filaClinica(titulo: "IMC", valor: v)
+                            Divider().padding(.leading, 24)
+                        }
+                        if let v = c.perimetroAbdominal {
+                            filaClinica(titulo: "Perímetro abdominal", valor: String(format: "%.1f cm", v))
+                            Divider().padding(.leading, 24)
+                        }
+                        if let v = c.presionArterial, !v.isEmpty {
+                            filaClinica(titulo: "Presión arterial", valor: v)
+                            Divider().padding(.leading, 24)
+                        }
+                        if let v = c.pulso {
+                            filaClinica(titulo: "Pulso", valor: "\(v) bpm")
+                            Divider().padding(.leading, 24)
+                        }
+                        if let v = c.frecuenciaCardiaca {
+                            filaClinica(titulo: "Frec. cardíaca", valor: "\(v) lpm")
+                            Divider().padding(.leading, 24)
+                        }
+                        if let v = c.frecuenciaRespiratoria {
+                            filaClinica(titulo: "Frec. respiratoria", valor: "\(v) rpm")
+                        }
+                    }
+                    Text("Tomados el \(c.fecha.formatted(date: .abbreviated, time: .omitted))")
+                        .font(.caption2)
+                        .foregroundStyle(Color.caritasGris)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 6)
+                        .padding(.bottom, 4)
+                } else {
+                    Text("Sin consultas generales registradas.")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.caritasGris)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 14)
                 }
 
+                // Datos socioeconómicos
                 Divider()
-                seccionHeader("Alergias")
-                bloqueTexto("Penicilina (reacción cutánea severa)")
-
-                Divider()
-                seccionHeader("Antecedentes familiares")
-                bloqueTexto("Madre con diabetes tipo 2. Padre con hipertensión.")
-
-                Divider()
-                seccionHeader("Antecedentes personales")
-                bloqueTexto("Diagnóstico de diabetes tipo 2 desde 2021. Sin cirugías previas. No fuma, no consume alcohol.")
-
-                Divider()
-                seccionHeader("Notas médicas recientes")
-                bloqueTexto("26 mar 2026: Ajuste de dosis. Dieta baja en carbohidratos.\n14 ene 2026: Glucosa elevada. Se recomendó control nutricional.")
+                seccionHeader("Datos socioeconómicos")
+                VStack(spacing: 0) {
+                    filaClinica(titulo: "IMSS", valor: paciente.tieneIMSS ? "Sí" : "No")
+                    if let v = paciente.gradoEstudios, !v.isEmpty {
+                        Divider().padding(.leading, 24)
+                        filaClinica(titulo: "Grado de estudios", valor: v)
+                    }
+                    if let v = paciente.ingresosMensuales, !v.isEmpty {
+                        Divider().padding(.leading, 24)
+                        filaClinica(titulo: "Ingresos mensuales", valor: v)
+                    }
+                    if let v = paciente.numIntegrantesFamilia {
+                        Divider().padding(.leading, 24)
+                        filaClinica(titulo: "Integrantes familia", valor: "\(v)")
+                    }
+                    if let v = paciente.domicilio, !v.isEmpty {
+                        Divider().padding(.leading, 24)
+                        filaClinica(titulo: "Domicilio", valor: v)
+                    }
+                    if let v = paciente.colonia, !v.isEmpty {
+                        Divider().padding(.leading, 24)
+                        filaClinica(titulo: "Colonia", valor: v)
+                    }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -454,14 +529,6 @@ struct DatosClinicosPacienteView: View {
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 10)
-    }
-
-    private func bloqueTexto(_ texto: String) -> some View {
-        Text(texto)
-            .font(.subheadline)
-            .foregroundStyle(Color.caritasAzul)
-            .padding(.horizontal, 24)
-            .padding(.bottom, 14)
     }
 }
 
@@ -574,35 +641,66 @@ struct MedicamentoFilaView: View {
 // MARK: - Línea de tiempo
 
 struct LineaTiempoPacienteView: View {
-    let eventos: [EventoLineaTiempo] = [
-        EventoLineaTiempo(fecha: "10 abr 2026", titulo: "Próximo seguimiento",
-                          descripcion: "Control de glucosa programado.", tipo: .seguimiento),
-        EventoLineaTiempo(fecha: "26 mar 2026", titulo: "Ajuste de dosis",
-                          descripcion: "Se ajustó tratamiento. Paciente con ligera mejoría.", tipo: .tratamiento),
-        EventoLineaTiempo(fecha: "14 ene 2026", titulo: "Glucosa elevada",
-                          descripcion: "Registro de 178 mg/dL. Se recomendó control nutricional.", tipo: .alerta),
-        EventoLineaTiempo(fecha: "03 nov 2025", titulo: "Evaluación nutricional",
-                          descripcion: "IMC 27.4. Se indicó seguimiento nutricional.", tipo: .nota),
-        EventoLineaTiempo(fecha: "Mar 2024",    titulo: "Primera visita",
-                          descripcion: "Paciente ingresa al programa de seguimiento.", tipo: .inicio)
-    ]
+    let paciente: Paciente
+
+    private var eventos: [EventoLineaTiempo] {
+        var lista: [EventoLineaTiempo] = []
+
+        // Consultas ordenadas de más reciente a más antigua
+        for consulta in paciente.consultas.sorted(by: { $0.fecha > $1.fecha }) {
+            let tipo: TipoEventoLineaTiempo = consulta.tipoConsulta == .consultaGeneral ? .tratamiento : .nota
+            let descripcion = [consulta.diagnostico, consulta.motivo]
+                .first(where: { !$0.isEmpty }) ?? consulta.tipoConsulta.rawValue
+            lista.append(EventoLineaTiempo(
+                fecha: consulta.fecha.formatted(date: .abbreviated, time: .omitted),
+                titulo: consulta.tipoConsulta.rawValue,
+                descripcion: descripcion,
+                tipo: tipo
+            ))
+        }
+
+        // Registro inicial (siempre al final)
+        lista.append(EventoLineaTiempo(
+            fecha: paciente.fechaRegistro.formatted(date: .abbreviated, time: .omitted),
+            titulo: "Registro en el sistema",
+            descripcion: "Paciente ingresa al programa Cáritas.",
+            tipo: .inicio
+        ))
+
+        return lista
+    }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(eventos) { evento in
-                    EventoLineaTiempoView(evento: evento)
+            if eventos.count == 1 {
+                // Solo tiene el registro inicial — sin consultas aún
+                VStack(spacing: 8) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 36))
+                        .foregroundStyle(Color.caritasSuave)
+                    Text("Sin actividad registrada aún")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.caritasGris)
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 60)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(eventos) { evento in
+                        EventoLineaTiempoView(evento: evento, esUltimo: evento.id == eventos.last?.id)
+                    }
+                }
+                .padding(.top, 16)
+                .padding(.horizontal, 24)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.top, 16)
-            .padding(.horizontal, 24)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
 
 struct EventoLineaTiempoView: View {
     let evento: EventoLineaTiempo
+    var esUltimo: Bool = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
@@ -611,10 +709,12 @@ struct EventoLineaTiempoView: View {
                     .fill(evento.tipo.color)
                     .frame(width: 12, height: 12)
                     .padding(.top, 3)
-                Rectangle()
-                    .fill(Color(.systemGray4))
-                    .frame(width: 1.5)
-                    .frame(maxHeight: .infinity)
+                if !esUltimo {
+                    Rectangle()
+                        .fill(Color(.systemGray4))
+                        .frame(width: 1.5)
+                        .frame(maxHeight: .infinity)
+                }
             }
             .frame(width: 16)
 

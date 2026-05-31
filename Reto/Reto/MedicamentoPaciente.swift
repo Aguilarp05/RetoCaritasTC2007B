@@ -19,6 +19,7 @@ class MedicamentoPaciente {
     var duracion: String?
     var notasMedicamento: String?
     var consulta: Consulta?
+    var sincronizado: Bool?
 
     init(
         nombre: String,
