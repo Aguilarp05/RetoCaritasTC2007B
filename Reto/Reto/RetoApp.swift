@@ -1,10 +1,3 @@
-//
-//  RetoApp.swift
-//  Reto
-//
-//  Created by Juan Pablo Aguilar Varela on 08/04/26.
-//
-
 import SwiftUI
 import SwiftData
 
@@ -26,7 +19,16 @@ struct RetoApp: App {
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            // El schema cambió — borrar store y arrancar limpio
+            let storeURL = modelConfiguration.url
+            try? FileManager.default.removeItem(at: storeURL)
+            try? FileManager.default.removeItem(at: storeURL.deletingPathExtension().appendingPathExtension("store-shm"))
+            try? FileManager.default.removeItem(at: storeURL.deletingPathExtension().appendingPathExtension("store-wal"))
+            do {
+                return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            } catch {
+                fatalError("Could not create ModelContainer: \(error)")
+            }
         }
     }()
 

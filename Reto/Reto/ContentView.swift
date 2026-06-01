@@ -43,7 +43,7 @@ struct ContentView: View {
             case "historial":    HistorialJornadaView()
             case "estadisticas": StatisticsDashboardView()
             case "personal":     PersonalView()
-            default:             DashboardView()
+            default:             DashboardView(onNuevaConsulta: { seleccion = "nuevo" })
             }
         }
         .environment(\.toggleSidebar, {
@@ -78,7 +78,7 @@ struct SidebarMenuView: View {
 
     private let items: [(id: String, icono: String, label: String)] = [
         ("dashboard",    "square.grid.2x2.fill",          "Dashboard"),
-        ("nuevo",        "person.badge.plus",              "Nuevo paciente"),
+        ("nuevo",        "person.badge.plus",              "Consulta"),
         ("historial",    "list.bullet.clipboard.fill",     "Historial"),
         ("estadisticas", "chart.bar.fill",                 "Estadísticas"),
         ("personal",     "person.2.badge.gearshape.fill",  "Personal médico"),

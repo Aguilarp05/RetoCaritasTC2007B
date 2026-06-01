@@ -3,6 +3,7 @@ import SwiftData
 
 struct DashboardView: View {
 
+    var onNuevaConsulta: (() -> Void)? = nil
     @Environment(\.toggleSidebar) private var toggleSidebar
     @Query(sort: \Jornada.fecha, order: .reverse) private var jornadas: [Jornada]
     @Query(sort: \Paciente.fechaRegistro, order: .reverse) private var pacientes: [Paciente]
@@ -114,7 +115,7 @@ struct DashboardView: View {
 
                 Divider()
 
-                // Total de pacientes
+                // Total de pacientes + botón acceso rápido
                 HStack(alignment: .center, spacing: 10) {
                     Text("\(totalPacientes)")
                         .font(.title)
@@ -130,9 +131,18 @@ struct DashboardView: View {
                             .foregroundStyle(Color.caritasGris)
                     }
                     Spacer()
-                    Image(systemName: "person.3.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(Color.caritasSuave)
+                    Button {
+                        onNuevaConsulta?()
+                    } label: {
+                        Label("Nueva consulta", systemImage: "plus")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 12)
+                            .background(Color.caritasAcento)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 20)

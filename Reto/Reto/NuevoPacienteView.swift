@@ -16,6 +16,7 @@ struct NuevoPacienteView: View {
     @Environment(\.toggleSidebar) private var toggleSidebar
     @Query(sort: \Personal.nombrePersonal) private var todoElPersonal: [Personal]
     @Query(sort: \Jornada.fecha, order: .reverse) private var jornadas: [Jornada]
+    @Query(sort: \Paciente.fechaRegistro, order: .reverse) private var pacientes: [Paciente]
     @FocusState private var foco: Campo?
 
     private var jornadaActiva: Jornada? {
@@ -26,16 +27,24 @@ struct NuevoPacienteView: View {
     @State private var nombreGuardado = ""
 
     var pasosDinamicos: [String] {
+        if tipoPaciente == "regresa" { return ["identificacion"] }
         var pasos = ["identificacion", "datos_personales", "consulta"]
-        if servicioSeleccionado == "Consulta general" {
-            pasos.append("signos_vitales")
-        }
+        if servicioSeleccionado == "Consulta general" { pasos.append("signos_vitales") }
         pasos.append("privacidad")
         return pasos
     }
 
     var totalPasos: Int { pasosDinamicos.count }
+
+    var etiquetaBotonContinuar: String {
+        if tipoPaciente == "regresa" { return "Abrir expediente →" }
+        return pasoActual < totalPasos - 1 ? "Continuar →" : "Registrar paciente"
+    }
     @State private var pacienteRegistrado = false
+    @State private var pacienteParaConsulta: Paciente? = nil
+    @State private var mostrarNuevaConsultaRegresa = false
+    @State private var fechaBusqueda = Date()
+    @State private var usarFechaBusqueda = false
 
     // Paso 1 — Identificación
     @State private var curp            = ""
@@ -94,6 +103,7 @@ struct NuevoPacienteView: View {
     var pasoValido: Bool {
         switch pasosDinamicos[pasoActual] {
         case "identificacion":
+            if tipoPaciente == "regresa" { return pacienteParaConsulta != nil }
             return !tipoPaciente.isEmpty
         case "datos_personales":
             let telefonoOk = telefono.isEmpty || telefono.count == 10
@@ -210,32 +220,41 @@ struct NuevoPacienteView: View {
 
     // MARK: - Navegación
     var navegacion: some View {
-        HStack(spacing: 12) {
-            if pasoActual > 0 {
-                Button("← Atrás") { pasoActual -= 1 }
-                    .foregroundStyle(Color.caritasGris)
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 14)
-                    .background(Color(.systemGray6))
+        Group {
+            // Paso 1 sin botón — las tarjetas son la navegación
+            if pasoActual == 0 && tipoPaciente != "regresa" {
+                Color.clear.frame(height: 0)
+            } else {
+                HStack(spacing: 12) {
+                    if pasoActual > 0 {
+                        Button("← Atrás") { pasoActual -= 1 }
+                            .foregroundStyle(Color.caritasGris)
+                            .padding(.horizontal, 28).padding(.vertical, 14)
+                            .background(Color(.systemGray6))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    Button(etiquetaBotonContinuar) {
+                        if tipoPaciente == "regresa" && pasoActual == 0 {
+                            mostrarNuevaConsultaRegresa = true
+                        } else if pasoActual == totalPasos - 1 {
+                            guardarPaciente()
+                        } else {
+                            pasoActual += 1
+                        }
+                    }
+                    .frame(maxWidth: .infinity).padding(.vertical, 14)
+                    .background(!pasoValido ? Color.caritasGris :
+                                (tipoPaciente == "regresa" || pasoActual == totalPasos - 1) ? Color.caritasAcento : Color.caritasPrimario)
+                    .foregroundStyle(.white).fontWeight(.semibold).font(.subheadline)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .disabled(!pasoValido)
+                    .fullScreenCover(isPresented: $mostrarNuevaConsultaRegresa) {
+                        if let p = pacienteParaConsulta { NuevaConsultaView(paciente: p) }
+                    }
+                }
+                .padding(.horizontal, 24).padding(.vertical, 16)
             }
-
-            Button(pasoActual < totalPasos - 1 ? "Continuar →" : "Registrar paciente") {
-                if pasoActual == totalPasos - 1 { guardarPaciente() }
-                else { pasoActual += 1 }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(!pasoValido ? Color.caritasGris :
-                        pasoActual < totalPasos - 1 ? Color.caritasPrimario : Color.caritasAcento)
-            .foregroundStyle(.white)
-            .fontWeight(.semibold)
-            .font(.subheadline)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .disabled(!pasoValido)
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 16)
         .alert("Paciente registrado", isPresented: $pacienteRegistrado) {
             Button("Nuevo paciente") { reiniciarFormulario() }
         } message: {
@@ -297,49 +316,225 @@ struct NuevoPacienteView: View {
 
     var paso1: some View {
         VStack(alignment: .leading, spacing: 16) {
-
-            campo("CURP (opcional)",
-                  placeholder: "Escribe o escanea el CURP",
-                  text: $curp,
-                  campoFoco: .curp,
-                  siguiente: .busqueda)
-
-            campo("Buscar por nombre",
-                  placeholder: "Escribe el nombre para verificar si ya existe",
-                  text: $nombreBusqueda,
-                  campoFoco: .busqueda,
-                  siguiente: nil)
-
-            if nombreBusqueda.lowercased().hasPrefix("tor") {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(Color.caritasAcento)
-                    Text("Posible paciente existente — **María E. Torres · C-047 · Última visita: nov 2025**")
-                        .font(.subheadline)
-                        .foregroundStyle(Color(hex: "#633806"))
+            if tipoPaciente == "regresa" {
+                // Chip compacto del tipo seleccionado
+                HStack(spacing: 10) {
+                    Image(systemName: "person.badge.clock").foregroundStyle(Color.caritasPrimario)
+                    Text("Visita de seguimiento")
+                        .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.caritasPrimario)
+                    Spacer()
+                    Button {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            tipoPaciente = ""
+                            pacienteParaConsulta = nil
+                            nombreBusqueda = ""
+                            curp = ""
+                        }
+                    } label: {
+                        Text("Cambiar").font(.caption).foregroundStyle(Color.caritasGris)
+                    }
                 }
                 .padding(12)
-                .background(Color(hex: "#FAEEDA"))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
+                .background(Color.caritasSuave)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .transition(.opacity)
 
-            separador("tipo de visita")
+                // Campos de búsqueda con animación
+                VStack(alignment: .leading, spacing: 14) {
+                    campo("CURP (opcional)", placeholder: "Escribe o escanea el CURP",
+                          text: $curp, campoFoco: .curp, siguiente: .busqueda)
 
-            HStack(spacing: 12) {
-                tarjetaTipo(
+                    campo("Nombre del paciente", placeholder: "Nombre para buscar",
+                          text: $nombreBusqueda, campoFoco: .busqueda, siguiente: nil)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Fecha de nacimiento").font(.caption).foregroundStyle(Color.caritasGris)
+                            Spacer()
+                            Toggle("", isOn: $usarFechaBusqueda)
+                                .labelsHidden().tint(Color.caritasPrimario)
+                                .scaleEffect(0.85)
+                        }
+                        if usarFechaBusqueda {
+                            DatePicker("", selection: $fechaBusqueda, in: ...Date(), displayedComponents: .date)
+                                .labelsHidden().padding(8)
+                                .background(Color(.systemGray6))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
+                    }
+                    .animation(.spring(response: 0.3), value: usarFechaBusqueda)
+
+                    listaResultadosBusqueda
+                        .animation(.spring(response: 0.35), value: pacientesFiltrados.count)
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
+
+            } else {
+                // Dos tarjetas grandes
+                tarjetaGrande(
                     titulo: "Primera visita",
-                    subtitulo: "Paciente sin expediente en Cáritas",
+                    subtitulo: "Paciente nuevo, sin expediente en Cáritas",
                     icono: "person.badge.plus",
-                    tipo: "nuevo"
-                )
-                tarjetaTipo(
+                    color: Color.caritasPrimario
+                ) {
+                    withAnimation(.spring(response: 0.3)) { tipoPaciente = "nuevo" }
+                    pasoActual += 1
+                }
+
+                tarjetaGrande(
                     titulo: "Visita de seguimiento",
-                    subtitulo: "Ya cuenta con expediente previo",
+                    subtitulo: "Ya cuenta con expediente previo en Cáritas",
                     icono: "person.badge.clock",
-                    tipo: "regresa"
-                )
+                    color: Color.caritasAcento
+                ) {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        tipoPaciente = "regresa"
+                    }
+                }
             }
         }
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: tipoPaciente)
+    }
+
+    func tarjetaGrande(titulo: String, subtitulo: String, icono: String, color: Color, accion: @escaping () -> Void) -> some View {
+        Button(action: accion) {
+            HStack(spacing: 20) {
+                ZStack {
+                    Circle().fill(color.opacity(0.12)).frame(width: 56, height: 56)
+                    Image(systemName: icono).font(.title2).foregroundStyle(color)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(titulo).font(.headline).fontWeight(.semibold).foregroundStyle(Color.caritasAzul)
+                    Text(subtitulo).font(.subheadline).foregroundStyle(Color.caritasGris)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.subheadline).foregroundStyle(Color.caritasGris)
+            }
+            .padding(20)
+            .background(Color(.systemGray6))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(color.opacity(0.3), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Búsqueda y similitud
+
+    private func similaridad(_ p: Paciente, busqueda: String) -> Double {
+        let clean = { (s: String) in s.lowercased().folding(options: .diacriticInsensitive, locale: .current) }
+        let terminos = clean(busqueda).split(separator: " ").map(String.init).filter { $0.count > 1 }
+        guard !terminos.isEmpty else { return 0 }
+
+        let nombre = clean(p.nombreCompleto)
+        let matched = terminos.filter { nombre.contains($0) }.count
+        var score = Double(matched) / Double(terminos.count)
+
+        // Bonus: mismo municipio que jornada activa
+        if let mJornada = jornadaActiva?.locacion?.municipio,
+           clean(p.municipio ?? "") == clean(mJornada) {
+            score = min(1.0, score + 0.15)
+        }
+
+        // Bonus: fecha de nacimiento coincide
+        if usarFechaBusqueda {
+            let cal = Calendar.current
+            if cal.isDate(p.fechaNacimiento, inSameDayAs: fechaBusqueda) {
+                score = min(1.0, score + 0.4)
+            } else if cal.component(.year, from: p.fechaNacimiento) == cal.component(.year, from: fechaBusqueda) {
+                score = min(1.0, score + 0.1)
+            }
+        }
+        return score
+    }
+
+    private var pacientesFiltrados: [Paciente] {
+        let curpQ = curp.trimmingCharacters(in: .whitespaces).uppercased()
+        if curpQ.count >= 6 {
+            return pacientes.filter { $0.curpPaciente?.uppercased().hasPrefix(curpQ) == true }
+        }
+        let busq = nombreBusqueda.trimmingCharacters(in: .whitespaces)
+        guard busq.count >= 2 else { return [] }
+        return pacientes
+            .map { ($0, similaridad($0, busqueda: busq)) }
+            .filter { $0.1 >= 0.3 }
+            .sorted { $0.1 > $1.1 }
+            .map { $0.0 }
+    }
+
+    private var mejorCandidato: Paciente? {
+        let busq = nombreBusqueda.trimmingCharacters(in: .whitespaces)
+        guard busq.count >= 2, let top = pacientesFiltrados.first else { return nil }
+        return similaridad(top, busqueda: busq) >= 0.7 ? top : nil
+    }
+
+    private var listaResultadosBusqueda: some View {
+        VStack(spacing: 8) {
+            if nombreBusqueda.count < 2 && curp.count < 6 {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(Color.caritasGris)
+                    Text("Escribe el nombre o al menos 6 caracteres del CURP")
+                        .font(.subheadline).foregroundStyle(Color.caritasGris)
+                }
+                .padding(12).background(Color(.systemGray6))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else if pacientesFiltrados.isEmpty {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.slash").foregroundStyle(Color.caritasGris)
+                    Text("Sin resultados. Si es nuevo, regresa y elige \"Primera visita\"")
+                        .font(.subheadline).foregroundStyle(Color.caritasGris)
+                }
+                .padding(12).background(Color(.systemGray6))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                ForEach(pacientesFiltrados.prefix(5)) { p in
+                    filaPacienteResultado(p)
+                }
+            }
+        }
+    }
+
+    private func filaPacienteResultado(_ p: Paciente) -> some View {
+        let sel = pacienteParaConsulta?.idPaciente == p.idPaciente
+        let iniciales = p.nombreCompleto.split(separator: " ").prefix(2)
+            .compactMap { $0.first }.map(String.init).joined().uppercased()
+        let ultimaConsulta = p.consultas.sorted { $0.fecha > $1.fecha }.first
+
+        return Button {
+            withAnimation(.spring(response: 0.3)) { pacienteParaConsulta = p }
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle().fill(sel ? Color.caritasPrimario : Color.caritasSuave).frame(width: 42, height: 42)
+                    Text(iniciales).font(.caption).fontWeight(.bold)
+                        .foregroundStyle(sel ? .white : Color.caritasPrimario)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(p.nombreCompleto)
+                        .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.caritasAzul)
+                    HStack(spacing: 4) {
+                        Text("\(p.edad) años")
+                        if let mun = p.municipio { Text("· \(mun)") }
+                        if let ult = ultimaConsulta {
+                            Text("· Últ. visita: \(ult.fecha.formatted(date: .abbreviated, time: .omitted))")
+                        }
+                    }
+                    .font(.caption).foregroundStyle(Color.caritasGris)
+                }
+                Spacer()
+                if sel {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.caritasPrimario).font(.title3)
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .padding(12)
+            .background(sel ? Color.caritasSuave : Color(.systemGray6))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10)
+                .stroke(sel ? Color.caritasPrimario : Color.clear, lineWidth: 1.5))
+        }
+        .buttonStyle(.plain)
     }
 
     func tarjetaTipo(titulo: String, subtitulo: String, icono: String, tipo: String) -> some View {
@@ -608,100 +803,95 @@ struct NuevoPacienteView: View {
     var paso4: some View {
         VStack(alignment: .leading, spacing: 14) {
 
-            HStack(spacing: 12) {
-                campo("Peso (kg)", placeholder: "Ej. 65.5", text: $peso,
-                      keyboard: .decimalPad, campoFoco: .peso, siguiente: .talla)
-                campo("Talla (cm)", placeholder: "Ej. 165", text: $talla,
-                      keyboard: .decimalPad, campoFoco: .talla, siguiente: .presionSistolica)
-            }
+            campo("Peso (kg)", placeholder: "Ej. 65.5", text: $peso,
+                  keyboard: .decimalPad, campoFoco: .peso, siguiente: .talla)
 
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Presión arterial")
-                        .font(.caption)
+            campo("Talla (cm)", placeholder: "Ej. 165", text: $talla,
+                  keyboard: .decimalPad, campoFoco: .talla, siguiente: .presionSistolica)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Presión arterial")
+                    .font(.caption)
+                    .foregroundStyle(Color.caritasGris)
+                HStack(spacing: 6) {
+                    TextField("Sist.", text: $presionSistolica)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.center)
+                        .padding(12)
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .font(.subheadline)
+                        .focused($foco, equals: .presionSistolica)
+                        .onSubmit { foco = .presionDiastolica }
+                    Text("/")
+                        .font(.title3)
                         .foregroundStyle(Color.caritasGris)
-                    HStack(spacing: 6) {
-                        TextField("Sist.", text: $presionSistolica)
-                            .keyboardType(.numberPad)
-                            .multilineTextAlignment(.center)
-                            .padding(12)
-                            .background(Color(.systemGray6))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                            .font(.subheadline)
-                            .focused($foco, equals: .presionSistolica)
-                            .onSubmit { foco = .presionDiastolica }
-                        Text("/")
-                            .font(.title3)
-                            .foregroundStyle(Color.caritasGris)
-                        TextField("Diast.", text: $presionDiastolica)
-                            .keyboardType(.numberPad)
-                            .multilineTextAlignment(.center)
-                            .padding(12)
-                            .background(Color(.systemGray6))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                            .font(.subheadline)
-                            .focused($foco, equals: .presionDiastolica)
-                            .onSubmit { foco = .pulso }
-                    }
+                    TextField("Diast.", text: $presionDiastolica)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.center)
+                        .padding(12)
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .font(.subheadline)
+                        .focused($foco, equals: .presionDiastolica)
+                        .onSubmit { foco = .pulso }
                 }
-                campo("Pulso (lpm)", placeholder: "Ej. 72", text: $pulso,
-                      keyboard: .numberPad, campoFoco: .pulso, siguiente: .frecuenciaCardiaca)
             }
 
-            HStack(spacing: 12) {
-                campo("Frec. cardiaca (lpm)", placeholder: "Ej. 75", text: $frecuenciaCardiaca,
-                      keyboard: .numberPad, campoFoco: .frecuenciaCardiaca, siguiente: .frecuenciaResp)
-                campo("Frec. respiratoria", placeholder: "Ej. 16", text: $frecuenciaResp,
-                      keyboard: .numberPad, campoFoco: .frecuenciaResp, siguiente: .perimetroAbdominal)
-            }
+            campo("Pulso (lpm)", placeholder: "Ej. 72", text: $pulso,
+                  keyboard: .numberPad, campoFoco: .pulso, siguiente: .frecuenciaCardiaca)
+
+            campo("Frec. cardiaca (lpm)", placeholder: "Ej. 75", text: $frecuenciaCardiaca,
+                  keyboard: .numberPad, campoFoco: .frecuenciaCardiaca, siguiente: .frecuenciaResp)
+
+            campo("Frec. respiratoria", placeholder: "Ej. 16", text: $frecuenciaResp,
+                  keyboard: .numberPad, campoFoco: .frecuenciaResp, siguiente: .perimetroAbdominal)
 
             campo("Perímetro abdominal (cm)", placeholder: "Ej. 85", text: $perimetroAbdominal,
                   keyboard: .decimalPad, campoFoco: .perimetroAbdominal, siguiente: nil)
 
             separador("Datos socioeconómicos")
 
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Integrantes de la familia")
-                        .font(.caption)
-                        .foregroundStyle(Color.caritasGris)
-                    HStack(spacing: 12) {
-                        Button { if numIntegrantes > 0 { numIntegrantes -= 1 } } label: {
-                            Image(systemName: "minus")
-                                .frame(width: 40, height: 40)
-                                .background(Color(.systemGray6))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .foregroundStyle(Color.caritasAzul)
-                        }
-                        Text("\(numIntegrantes)")
-                            .font(.subheadline).fontWeight(.medium)
-                            .frame(minWidth: 32)
-                            .multilineTextAlignment(.center)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Integrantes de la familia")
+                    .font(.caption)
+                    .foregroundStyle(Color.caritasGris)
+                HStack(spacing: 12) {
+                    Button { if numIntegrantes > 0 { numIntegrantes -= 1 } } label: {
+                        Image(systemName: "minus")
+                            .frame(width: 40, height: 40)
+                            .background(Color(.systemGray6))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
                             .foregroundStyle(Color.caritasAzul)
-                        Button { numIntegrantes += 1 } label: {
-                            Image(systemName: "plus")
-                                .frame(width: 40, height: 40)
-                                .background(Color(.systemGray6))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .foregroundStyle(Color.caritasAzul)
-                        }
+                    }
+                    Text("\(numIntegrantes)")
+                        .font(.subheadline).fontWeight(.medium)
+                        .frame(minWidth: 32)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(Color.caritasAzul)
+                    Button { numIntegrantes += 1 } label: {
+                        Image(systemName: "plus")
+                            .frame(width: 40, height: 40)
+                            .background(Color(.systemGray6))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .foregroundStyle(Color.caritasAzul)
                     }
                 }
+            }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Grado de estudios")
-                        .font(.caption)
-                        .foregroundStyle(Color.caritasGris)
-                    Picker("Grado de estudios", selection: $gradoEstudios) {
-                        Text("Selecciona").tag("")
-                        ForEach(gradosEstudios, id: \.self) { Text($0).tag($0) }
-                    }
-                    .pickerStyle(.menu)
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(.systemGray6))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Grado de estudios")
+                    .font(.caption)
+                    .foregroundStyle(Color.caritasGris)
+                Picker("Grado de estudios", selection: $gradoEstudios) {
+                    Text("Selecciona").tag("")
+                    ForEach(gradosEstudios, id: \.self) { Text($0).tag($0) }
                 }
+                .pickerStyle(.menu)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.systemGray6))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -898,6 +1088,8 @@ struct NuevoPacienteView: View {
 
     private func reiniciarFormulario() {
         pasoActual = 0; curp = ""; nombreBusqueda = ""; tipoPaciente = ""
+        pacienteParaConsulta = nil; mostrarNuevaConsultaRegresa = false
+        fechaBusqueda = Date(); usarFechaBusqueda = false
         primerNombre = ""; segundoNombre = ""; primerApellido = ""; segundoApellido = ""
         fechaNacimiento = Date(); sexo = .noDefinido; telefono = ""
         estadoSeleccionado = "Nuevo León"; municipioSeleccionado = ""; comunidad = ""

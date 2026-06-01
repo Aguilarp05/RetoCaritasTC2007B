@@ -296,41 +296,35 @@ struct NuevaConsultaView: View {
 
             seccionHeader("Signos físicos generales")
             VStack(spacing: 12) {
-                HStack(spacing: 12) {
-                    campo("Peso (kg)", placeholder: "Ej. 65.5", texto: $peso)
-                    campo("Talla (cm)", placeholder: "Ej. 165", texto: $talla)
-                }
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Presión arterial")
-                            .font(.caption)
+                campo("Peso (kg)", placeholder: "Ej. 65.5", texto: $peso)
+                campo("Talla (cm)", placeholder: "Ej. 165", texto: $talla)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Presión arterial")
+                        .font(.caption)
+                        .foregroundStyle(Color.caritasGris)
+                    HStack(spacing: 6) {
+                        TextField("Sist.", text: $presionSistolica)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.center)
+                            .padding(12)
+                            .background(Color(.systemGray6))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .font(.subheadline)
+                        Text("/")
+                            .font(.title3)
                             .foregroundStyle(Color.caritasGris)
-                        HStack(spacing: 6) {
-                            TextField("Sist.", text: $presionSistolica)
-                                .keyboardType(.numberPad)
-                                .multilineTextAlignment(.center)
-                                .padding(12)
-                                .background(Color(.systemGray6))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .font(.subheadline)
-                            Text("/")
-                                .font(.title3)
-                                .foregroundStyle(Color.caritasGris)
-                            TextField("Diast.", text: $presionDiastolica)
-                                .keyboardType(.numberPad)
-                                .multilineTextAlignment(.center)
-                                .padding(12)
-                                .background(Color(.systemGray6))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .font(.subheadline)
-                        }
+                        TextField("Diast.", text: $presionDiastolica)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.center)
+                            .padding(12)
+                            .background(Color(.systemGray6))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .font(.subheadline)
                     }
-                    campo("Pulso (lpm)", placeholder: "Ej. 72", texto: $pulso)
                 }
-                HStack(spacing: 12) {
-                    campo("Frec. cardiaca", placeholder: "Ej. 75", texto: $frecuenciaCardiaca)
-                    campo("Frec. respiratoria", placeholder: "Ej. 16", texto: $frecuenciaRespiratoria)
-                }
+                campo("Pulso (lpm)", placeholder: "Ej. 72", texto: $pulso)
+                campo("Frec. cardiaca", placeholder: "Ej. 75", texto: $frecuenciaCardiaca)
+                campo("Frec. respiratoria", placeholder: "Ej. 16", texto: $frecuenciaRespiratoria)
                 campo("Perímetro abdominal (cm)", placeholder: "Ej. 85", texto: $perimetroAbdominal)
             }
             .padding(.horizontal, 20)
