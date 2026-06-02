@@ -143,6 +143,7 @@ struct DashboardView: View {
                             .background(Color.caritasAcento)
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
+                    .buttonStyle(PressableButtonStyle())
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 20)
@@ -222,7 +223,6 @@ struct DashboardView: View {
             }
         }
         .background(Color(.systemBackground))
-        .colorScheme(.light)
         .toolbar(.hidden, for: .navigationBar)
     }
 }

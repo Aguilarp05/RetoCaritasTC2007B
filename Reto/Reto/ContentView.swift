@@ -14,14 +14,41 @@ extension EnvironmentValues {
     }
 }
 
+// MARK: - Modo de apariencia (claro / oscuro / sistema)
+
+enum AppearanceMode: String, CaseIterable {
+    case sistema, claro, oscuro
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .sistema: return nil
+        case .claro:   return .light
+        case .oscuro:  return .dark
+        }
+    }
+
+    var icono: String {
+        switch self {
+        case .sistema: return "circle.lefthalf.filled"
+        case .claro:   return "sun.max.fill"
+        case .oscuro:  return "moon.fill"
+        }
+    }
+}
+
 // MARK: - ContentView
 
 struct ContentView: View {
     @StateObject private var syncVM = CaritasSyncVM()
     @Environment(\.modelContext) private var modelContext
+    @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.sistema.rawValue
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var mostrarConfigJornada = false
     @State private var seleccion: String = "dashboard"
+
+    private var apariencia: AppearanceMode {
+        AppearanceMode(rawValue: appearanceMode) ?? .sistema
+    }
 
     @Query(sort: \Jornada.fecha, order: .reverse) private var jornadas: [Jornada]
 
@@ -38,14 +65,19 @@ struct ContentView: View {
             )
             .environmentObject(syncVM)
         } detail: {
-            switch seleccion {
-            case "nuevo":        NuevoPacienteView()
-            case "historial":    HistorialJornadaView()
-            case "estadisticas": StatisticsDashboardView()
-            case "personal":     PersonalView()
-            default:             DashboardView(onNuevaConsulta: { seleccion = "nuevo" })
+            Group {
+                switch seleccion {
+                case "nuevo":        NuevoPacienteView()
+                case "historial":    HistorialJornadaView()
+                case "estadisticas": StatisticsDashboardView()
+                case "personal":     PersonalView()
+                default:             DashboardView(onNuevaConsulta: { cambiarSeccion("nuevo") })
+                }
             }
+            .id(seleccion)
+            .transition(.opacity)
         }
+        .preferredColorScheme(apariencia.colorScheme)
         .environment(\.toggleSidebar, {
             withAnimation {
                 columnVisibility = columnVisibility == .all ? .detailOnly : .all
@@ -63,6 +95,10 @@ struct ContentView: View {
             syncVM.actualizarPendientes(context: modelContext)
         }
     }
+
+    private func cambiarSeccion(_ nueva: String) {
+        withAnimation(.easeInOut(duration: 0.22)) { seleccion = nueva }
+    }
 }
 
 // MARK: - Sidebar menu
@@ -70,6 +106,7 @@ struct ContentView: View {
 struct SidebarMenuView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var syncVM: CaritasSyncVM
+    @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.sistema.rawValue
     @Binding var seleccion: String
     let jornadaActiva: Jornada?
     let onConfigurarJornada: () -> Void
@@ -111,6 +148,9 @@ struct SidebarMenuView: View {
 
             Spacer()
 
+            // Selector de apariencia
+            appearanceSwitcher
+
             // Botón de sincronización
             Button {
                 Task { await syncVM.sincronizar(context: modelContext) }
@@ -120,7 +160,7 @@ struct SidebarMenuView: View {
                         if syncVM.estaSincronizando {
                             ProgressView()
                                 .progressViewStyle(.circular)
-                                .tint(Color.caritasSuave)
+                                .tint(Color.caritasSuaveFijo)
                         } else {
                             Image(systemName: syncVM.isOffline ? "wifi.slash" : "arrow.triangle.2.circlepath")
                                 .font(.system(size: 15, weight: .medium))
@@ -154,7 +194,7 @@ struct SidebarMenuView: View {
                             .clipShape(Capsule())
                     }
                 }
-                .foregroundStyle(syncVM.isOffline ? Color.white.opacity(0.35) : Color.caritasSuave)
+                .foregroundStyle(syncVM.isOffline ? Color.white.opacity(0.35) : Color.caritasSuaveFijo)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 13)
                 .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.07)))
@@ -223,8 +263,44 @@ struct SidebarMenuView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .background(Color.caritasAzul.ignoresSafeArea())
+        .background(Color.caritasAzulFijo.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    // MARK: - Selector de apariencia
+
+    private var appearanceSwitcher: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Apariencia")
+                .font(.caption2).fontWeight(.semibold)
+                .foregroundStyle(Color.white.opacity(0.4))
+                .textCase(.uppercase)
+                .padding(.horizontal, 4)
+
+            HStack(spacing: 6) {
+                ForEach(AppearanceMode.allCases, id: \.self) { modo in
+                    let activo = appearanceMode == modo.rawValue
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            appearanceMode = modo.rawValue
+                        }
+                    } label: {
+                        Image(systemName: modo.icono)
+                            .font(.system(size: 14, weight: .medium))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
+                            .foregroundStyle(activo ? Color.caritasAzulFijo : Color.white.opacity(0.55))
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(activo ? Color.caritasSuaveFijo : Color.white.opacity(0.08))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.bottom, 14)
     }
 
     private func cerrarJornada() {
@@ -245,7 +321,9 @@ struct SidebarItemRow: View {
     private var isSelected: Bool { seleccion == id }
 
     var body: some View {
-        Button { seleccion = id } label: {
+        Button {
+            withAnimation(.easeInOut(duration: 0.22)) { seleccion = id }
+        } label: {
             HStack(spacing: 12) {
                 Image(systemName: icono)
                     .font(.system(size: 15, weight: .medium))
@@ -272,6 +350,19 @@ struct SidebarItemRow: View {
                 }
             }
         }
+        .animation(.easeInOut(duration: 0.22), value: isSelected)
+    }
+}
+
+// MARK: - Estilo de botón con realimentación táctil
+
+/// Reduce ligeramente la escala al presionar — animación sutil para CTAs.
+struct PressableButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .opacity(configuration.isPressed ? 0.9 : 1)
+            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
 }
 

@@ -168,7 +168,6 @@ struct NuevaConsultaView: View {
                 }
                 .background(Color(.systemBackground))
             }
-            .colorScheme(.light)
             .navigationTitle("Nueva consulta")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
@@ -378,7 +377,6 @@ struct NuevaConsultaView: View {
         case .dental:
             seccionHeader("Consulta dental")
             VStack(spacing: 12) {
-                campo("Dr. que atendió", texto: $medico)
                 campoLectura("Nombre", valor: paciente.nombreCompleto)
                 campoLectura("Edad",   valor: "\(paciente.edad) años")
                 campoLectura("Sexo",   valor: paciente.sexoPaciente.rawValue.capitalized)

@@ -137,7 +137,6 @@ struct NuevoPacienteView: View {
             navegacion
         }
         .background(Color(.systemBackground))
-        .colorScheme(.light)
         .toolbar(.hidden, for: .navigationBar)
         .onChange(of: pasoActual) { foco = nil }
     }
@@ -416,7 +415,7 @@ struct NuevoPacienteView: View {
             .clipShape(RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(color.opacity(0.3), lineWidth: 1))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableButtonStyle())
     }
 
     // MARK: - Búsqueda y similitud
@@ -1118,7 +1117,7 @@ struct VistaFirma: View {
                 guard let primero = trazo.puntos.first else { continue }
                 path.move(to: primero)
                 for punto in trazo.puntos.dropFirst() { path.addLine(to: punto) }
-                context.stroke(path, with: .color(.black), lineWidth: 2)
+                context.stroke(path, with: .color(Color(uiColor: .label)), lineWidth: 2)
             }
         }
         .gesture(

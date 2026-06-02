@@ -114,7 +114,7 @@ struct VistaPacienteRegistrado: View {
                             .font(.subheadline)
                         Text(notas)
                             .font(.subheadline)
-                            .foregroundStyle(Color(hex: "#633806"))
+                            .foregroundStyle(Color.caritasNota)
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 16)
@@ -255,7 +255,6 @@ struct ExpedientePacienteView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(Color(.systemBackground))
         }
-        .colorScheme(.light)
         .toolbar(.hidden, for: .navigationBar)
         .fullScreenCover(isPresented: $mostrarNuevaConsulta) {
             NuevaConsultaView(paciente: paciente)
@@ -677,7 +676,7 @@ struct LineaTiempoPacienteView: View {
                 VStack(spacing: 8) {
                     Image(systemName: "clock.arrow.circlepath")
                         .font(.system(size: 36))
-                        .foregroundStyle(Color.caritasSuave)
+                        .foregroundStyle(Color.caritasGris.opacity(0.4))
                     Text("Sin actividad registrada aún")
                         .font(.subheadline)
                         .foregroundStyle(Color.caritasGris)

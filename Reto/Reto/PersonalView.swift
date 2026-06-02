@@ -62,7 +62,6 @@ struct PersonalView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(.systemGroupedBackground))
         }
-        .colorScheme(.light)
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $mostrarFormulario) {
             FormularioPersonalView(personal: personalAEditar)
@@ -527,7 +526,6 @@ struct FormularioPersonalView: View {
                 .padding(24)
             }
             .background(Color(.systemBackground))
-            .colorScheme(.light)
             .navigationTitle(esEdicion ? "Editar personal" : "Registrar personal")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

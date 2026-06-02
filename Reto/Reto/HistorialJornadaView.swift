@@ -83,7 +83,6 @@ struct HistorialJornadaView: View {
             }
         }
         .background(Color(.systemBackground))
-        .colorScheme(.light)
         .toolbar(.hidden, for: .navigationBar)
     }
 

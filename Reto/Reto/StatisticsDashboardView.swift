@@ -212,7 +212,6 @@ struct StatisticsDashboardView: View {
             }
             .background(Color(.systemBackground))
         }
-        .colorScheme(.light)
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $mostrarCompartir) {
             if let url = pdfURL { ShareSheet(items: [url]) }

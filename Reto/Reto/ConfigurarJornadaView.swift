@@ -174,7 +174,6 @@ struct ConfigurarJornadaView: View {
             }
         }
         .background(Color(.systemBackground))
-        .colorScheme(.light)
     }
 
     // MARK: - Helpers
