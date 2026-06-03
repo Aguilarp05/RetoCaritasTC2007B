@@ -15,6 +15,7 @@ class Jornada {
     var serviciosDisponibles: [String]
     var personalNombres: [String]
     var createdAt: Date
+    var sincronizado: Bool?
 
     var locacion: Locacion?
 

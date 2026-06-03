@@ -13,6 +13,7 @@ class Personal {
     var matricula: String?            // Cédula profesional — nil si es estudiante/practicante
     var esActivo: Bool
     var fechaCreacionPersonal: Date
+    var sincronizado: Bool?
 
     @Relationship(inverse: \Jornada.personal)
     var jornadas: [Jornada] = []
@@ -25,7 +26,7 @@ class Personal {
         nombrePersonal: String,
         apellidosPersonal: String,
         sexoPersonal: Sexo,
-        especialidad: String,
+        especialidad: String = "",
         areasDeServicio: [String] = [],
         matricula: String? = nil
     ) {
@@ -39,6 +40,7 @@ class Personal {
         self.matricula             = (matricula?.trimmingCharacters(in: .whitespaces).isEmpty == false) ? matricula : nil
         self.esActivo              = true
         self.fechaCreacionPersonal = Date()
+        self.sincronizado          = false
     }
 
     var nombreCompleto: String { "\(nombrePersonal) \(apellidosPersonal)" }

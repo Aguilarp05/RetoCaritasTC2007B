@@ -127,8 +127,6 @@ struct PersonalView: View {
                                 .clipShape(Capsule())
                         }
                     }
-                    Text(persona.especialidad)
-                        .font(.caption).foregroundStyle(Color.caritasPrimario)
                     if !persona.areasDeServicio.isEmpty {
                         Text(persona.areasDeServicio.joined(separator: " · "))
                             .font(.caption2).foregroundStyle(Color.caritasGris)
@@ -206,8 +204,6 @@ struct PerfilPersonalView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(personal.nombreCompleto)
                                 .font(.title3).fontWeight(.bold).foregroundStyle(Color.caritasAzul)
-                            Text(personal.especialidad)
-                                .font(.subheadline).foregroundStyle(Color.caritasPrimario)
                             HStack(spacing: 6) {
                                 Circle()
                                     .fill(personal.esActivo ? Color.green : Color.caritasGris)
@@ -363,7 +359,6 @@ struct FormularioPersonalView: View {
     @State private var sexo         = Sexo.noDefinido
     @State private var estadoNacimiento = "Nuevo León"
     @State private var curp         = ""
-    @State private var especialidad = ""
     @State private var areasDeServicio: Set<String> = []
     @State private var matricula    = ""
     @State private var esActivo     = true
@@ -371,11 +366,6 @@ struct FormularioPersonalView: View {
     @FocusState private var foco: CampoPersonal?
     private enum CampoPersonal: Hashable { case nombre, apellidos, curp, matricula }
 
-    private let titulosProfesionales = [
-        "Médico general", "Odontólogo/a", "Optometrista", "Enfermero/a",
-        "Farmacéutico/a", "Nutriólogo/a", "Estudiante de medicina",
-        "Estudiante de odontología", "Practicante", "Otro",
-    ]
     private let serviciosDisponibles = TipoConsulta.allCases.map { $0.rawValue }
 
     private let estadosCodes: [(nombre: String, codigo: String)] = [
@@ -398,8 +388,7 @@ struct FormularioPersonalView: View {
         !nombre.trimmingCharacters(in: .whitespaces).isEmpty &&
         !apellidos.trimmingCharacters(in: .whitespaces).isEmpty &&
         curp.trimmingCharacters(in: .whitespaces).count == 18 &&
-        sexo != .noDefinido &&
-        !especialidad.isEmpty
+        sexo != .noDefinido
     }
 
     var body: some View {
@@ -465,18 +454,6 @@ struct FormularioPersonalView: View {
                             Text("\(curp.count)/18 caracteres")
                                 .font(.caption2).foregroundStyle(Color.caritasAcento)
                         }
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Título / Rol profesional *").font(.caption).foregroundStyle(Color.caritasGris)
-                        Picker("Especialidad", selection: $especialidad) {
-                            Text("Selecciona un título").tag("")
-                            ForEach(titulosProfesionales, id: \.self) { Text($0).tag($0) }
-                        }
-                        .pickerStyle(.menu).padding(12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(.systemGray6))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
@@ -626,7 +603,6 @@ struct FormularioPersonalView: View {
         apellidos   = p.apellidosPersonal
         curp        = p.curpPersonal
         sexo        = p.sexoPersonal
-        especialidad = p.especialidad
         areasDeServicio = Set(p.areasDeServicio)
         matricula   = p.matricula ?? ""
         esActivo    = p.esActivo
@@ -656,17 +632,16 @@ struct FormularioPersonalView: View {
             p.apellidosPersonal = apellidos.trimmingCharacters(in: .whitespaces)
             p.curpPersonal      = curp.uppercased().trimmingCharacters(in: .whitespaces)
             p.sexoPersonal      = sexo
-            p.especialidad      = especialidad
             p.areasDeServicio   = areas
             p.matricula         = matFinal
             p.esActivo          = esActivo
+            p.sincronizado      = false
         } else {
             modelContext.insert(Personal(
                 curpPersonal:      curp,
                 nombrePersonal:    nombre.trimmingCharacters(in: .whitespaces),
                 apellidosPersonal: apellidos.trimmingCharacters(in: .whitespaces),
                 sexoPersonal:      sexo,
-                especialidad:      especialidad,
                 areasDeServicio:   areas,
                 matricula:         matFinal
             ))

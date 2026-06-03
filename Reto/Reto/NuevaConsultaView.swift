@@ -146,7 +146,7 @@ struct NuevaConsultaView: View {
                                     Picker("Personal", selection: $medico) {
                                         Text("Selecciona quién atiende").tag("")
                                         ForEach(activos) { p in
-                                            Text("\(p.nombreCompleto) · \(p.especialidad)").tag(p.nombreCompleto)
+                                            Text(p.nombreCompleto).tag(p.nombreCompleto)
                                         }
                                     }
                                     .pickerStyle(.menu)
@@ -378,7 +378,6 @@ struct NuevaConsultaView: View {
         case .dental:
             seccionHeader("Consulta dental")
             VStack(spacing: 12) {
-                campo("Dr. que atendió", texto: $medico)
                 campoLectura("Nombre", valor: paciente.nombreCompleto)
                 campoLectura("Edad",   valor: "\(paciente.edad) años")
                 campoLectura("Sexo",   valor: paciente.sexoPaciente.rawValue.capitalized)
@@ -491,6 +490,10 @@ struct NuevaConsultaView: View {
             cantidadMedicamentos:  tipoConsulta == .entregaMedicamentos ? Int(cantidadMedicamento) : nil
         )
         paciente.consultas.append(nuevaConsulta)
+        nuevaConsulta.jornada = jornadaActiva
+        nuevaConsulta.personalMedico = jornadaActiva?.personal.first { $0.nombreCompleto == medico }
+            ?? todoElPersonal.first { $0.nombreCompleto == medico }
+
         for med in medicamentosIndicados {
             paciente.medicamentos.append(MedicamentoPaciente(
                 nombre:    med.nombre,

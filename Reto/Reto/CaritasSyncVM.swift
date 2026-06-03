@@ -143,6 +143,58 @@ struct ConsultaCreateDTO: Encodable {
     }
 }
 
+// MARK: - DTOs Personal
+
+struct PersonalCreateDTO: Encodable {
+    let idPersonal: String
+    let curpPersonal: String
+    let nombrePersonal: String
+    let apellidosPersonal: String
+    let sexoPersonal: String
+    let especialidad: String
+    let areasDeServicio: [String]
+    let matricula: String?
+    let esActivo: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case idPersonal         = "id_personal"
+        case curpPersonal       = "curp_personal"
+        case nombrePersonal     = "nombre_personal"
+        case apellidosPersonal  = "apellidos_personal"
+        case sexoPersonal       = "sexo_personal"
+        case especialidad
+        case areasDeServicio    = "areas_de_servicio"
+        case matricula
+        case esActivo           = "es_activo"
+    }
+}
+
+// MARK: - DTOs Jornada
+
+struct JornadaCreateDTO: Encodable {
+    let idJornada: String
+    let idLocacion: String
+    let fecha: String
+    let horaInicio: String
+    let horaFin: String?
+    let serviciosDisponibles: [String]
+    let estado: String
+    let municipio: String
+    let comunidad: String?
+    let personalIds: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case idJornada            = "id_jornada"
+        case idLocacion           = "id_locacion"
+        case fecha
+        case horaInicio           = "hora_inicio"
+        case horaFin              = "hora_fin"
+        case serviciosDisponibles = "servicios_disponibles"
+        case estado, municipio, comunidad
+        case personalIds          = "personal_ids"
+    }
+}
+
 // MARK: - DTOs Medicamento (medicamentos_paciente)
 
 struct MedicamentoCreateDTO: Encodable {
@@ -184,6 +236,12 @@ class CaritasSyncVM: ObservableObject {
         return f
     }()
 
+    private let isoFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withTimeZone]
+        return f
+    }()
+
     init() {
         monitor.pathUpdateHandler = { [weak self] path in
             DispatchQueue.main.async {
@@ -206,18 +264,74 @@ class CaritasSyncVM: ObservableObject {
         mensajeError = ""
         defer { estaSincronizando = false }
 
-        // 1. Subir pacientes nuevos
+        // 1. Subir personal y jornadas primero (consultas los referencian)
+        await subirPersonalLocal(context: context)
+        await subirJornadasLocales(context: context)
+
+        // 2. Subir pacientes nuevos
         await subirPacientesLocales(context: context)
 
-        // 2. Descargar pacientes del servidor → devuelve mapa caritasId → serverUUID
+        // 3. Descargar pacientes del servidor → devuelve mapa caritasId → serverUUID
         let caritasIdMap = await descargarPacientesDelServidor(context: context)
 
-        // 3. Subir consultas y medicamentos usando el mapa de IDs
+        // 4. Subir consultas y medicamentos usando el mapa de IDs
         await subirConsultasLocales(context: context, caritasIdMap: caritasIdMap)
         await subirMedicamentosLocales(context: context, caritasIdMap: caritasIdMap)
 
         actualizarPendientes(context: context)
         if mensajeError.isEmpty { ultimaSincronizacion = Date() }
+    }
+
+    // MARK: - Personal: subida
+
+    func subirPersonalLocal(context: ModelContext) async {
+        guard let url = URL(string: "\(baseURL)/personal") else { return }
+        let todos = (try? context.fetch(FetchDescriptor<Personal>())) ?? []
+
+        for persona in todos {
+            do {
+                var request = URLRequest(url: url)
+                request.httpMethod = "POST"
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.httpBody = try JSONEncoder().encode(personalACreateDTO(persona))
+                request.timeoutInterval = 10
+
+                let (_, response) = try await URLSession.shared.data(for: request)
+                if let http = response as? HTTPURLResponse,
+                   (200...201).contains(http.statusCode) || http.statusCode == 409 {
+                    persona.sincronizado = true
+                }
+            } catch {
+                print("Error personal \(persona.curpPersonal): \(error.localizedDescription)")
+            }
+        }
+        try? context.save()
+    }
+
+    // MARK: - Jornadas: subida
+
+    func subirJornadasLocales(context: ModelContext) async {
+        guard let url = URL(string: "\(baseURL)/jornadas") else { return }
+        let pendientes = (try? context.fetch(FetchDescriptor<Jornada>()))?.filter { $0.sincronizado != true } ?? []
+
+        for jornada in pendientes {
+            do {
+                var request = URLRequest(url: url)
+                request.httpMethod = "POST"
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.httpBody = try JSONEncoder().encode(jornadaACreateDTO(jornada))
+                request.timeoutInterval = 10
+
+                let (_, response) = try await URLSession.shared.data(for: request)
+                if let http = response as? HTTPURLResponse,
+                   (200...201).contains(http.statusCode) || http.statusCode == 409 {
+                    jornada.sincronizado = true
+                }
+            } catch {
+                print("Error jornada \(jornada.idJornada): \(error.localizedDescription)")
+            }
+        }
+        try? context.save()
     }
 
     // MARK: - Pacientes: subida
@@ -285,10 +399,10 @@ class CaritasSyncVM: ObservableObject {
             do {
                 guard let paciente = try? context.fetch(FetchDescriptor<Paciente>())
                     .first(where: { $0.consultas.contains(where: { $0.idConsulta == consulta.idConsulta }) })
-                else { print("❌ \(consulta.idConsulta): paciente no encontrado"); continue }
+                else { print("Error \(consulta.idConsulta): paciente no encontrado"); continue }
 
                 guard let serverIdPaciente = caritasIdMap[paciente.caritasId]
-                else { print("❌ \(consulta.idConsulta): caritasId '\(paciente.caritasId)' no en mapa"); continue }
+                else { print("Error \(consulta.idConsulta): caritasId '\(paciente.caritasId)' no en mapa"); continue }
 
                 let idJornada  = consulta.jornada?.idJornada.uuidString
                 let idPersonal = consulta.personalMedico?.idPersonal.uuidString
@@ -359,14 +473,49 @@ class CaritasSyncVM: ObservableObject {
         let pacientes    = (try? context.fetch(FetchDescriptor<Paciente>())) ?? []
         let consultas    = (try? context.fetch(FetchDescriptor<Consulta>())) ?? []
         let medicamentos = (try? context.fetch(FetchDescriptor<MedicamentoPaciente>())) ?? []
+        let personal     = (try? context.fetch(FetchDescriptor<Personal>())) ?? []
+        let jornadas     = (try? context.fetch(FetchDescriptor<Jornada>())) ?? []
 
-        let p = pacientes.filter    { $0.sincronizado != true }.count
-        let c = consultas.filter    { $0.sincronizado != true }.count
-        let m = medicamentos.filter { $0.sincronizado != true }.count
+        let p  = pacientes.filter    { $0.sincronizado != true }.count
+        let c  = consultas.filter    { $0.sincronizado != true }.count
+        let m  = medicamentos.filter { $0.sincronizado != true }.count
+        let pe = personal.filter     { $0.sincronizado != true }.count
+        let j  = jornadas.filter     { $0.sincronizado != true }.count
 
-        pendientesSincronizacion = p + c + m
-        desglosePendientes = "Pacientes: \(p) · Consultas: \(c) · Medicamentos: \(m)"
-        print("📊 Pendientes — \(desglosePendientes)")
+        pendientesSincronizacion = p + c + m + pe + j
+        desglosePendientes = "Pacientes: \(p) · Consultas: \(c) · Medicamentos: \(m) · Personal: \(pe) · Jornadas: \(j)"
+        print("Pendientes — \(desglosePendientes)")
+    }
+
+    // MARK: - Conversiones Personal / Jornada
+
+    private func personalACreateDTO(_ p: Personal) -> PersonalCreateDTO {
+        PersonalCreateDTO(
+            idPersonal:        p.idPersonal.uuidString,
+            curpPersonal:      p.curpPersonal,
+            nombrePersonal:    p.nombrePersonal,
+            apellidosPersonal: p.apellidosPersonal,
+            sexoPersonal:      sexoParaServidor(p.sexoPersonal),
+            especialidad:      p.especialidad,
+            areasDeServicio:   p.areasDeServicio,
+            matricula:         p.matricula,
+            esActivo:          p.esActivo
+        )
+    }
+
+    private func jornadaACreateDTO(_ j: Jornada) -> JornadaCreateDTO {
+        JornadaCreateDTO(
+            idJornada:            j.idJornada.uuidString,
+            idLocacion:           j.locacion?.idLocacion.uuidString ?? UUID().uuidString,
+            fecha:                fechaFormatter.string(from: j.fecha),
+            horaInicio:           isoFormatter.string(from: j.horaInicio),
+            horaFin:              j.horaFin.map { isoFormatter.string(from: $0) },
+            serviciosDisponibles: j.serviciosDisponibles,
+            estado:               j.locacion?.estado ?? "Nuevo León",
+            municipio:            j.locacion?.municipio ?? "",
+            comunidad:            j.locacion?.comunidad,
+            personalIds:          j.personal.map { $0.idPersonal.uuidString }
+        )
     }
 
     // MARK: - Conversiones Paciente

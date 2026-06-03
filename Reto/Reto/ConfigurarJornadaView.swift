@@ -152,7 +152,7 @@ struct ConfigurarJornadaView: View {
                                                 .font(.subheadline)
                                                 .fontWeight(.medium)
                                                 .foregroundStyle(Color.caritasAzul)
-                                            Text(persona.especialidad)
+                                            Text(persona.curpPersonal)
                                                 .font(.caption)
                                                 .foregroundStyle(Color.caritasGris)
                                         }
@@ -240,6 +240,7 @@ struct ConfigurarJornadaView: View {
         )
         jornada.personal = seleccionados
         modelContext.insert(jornada)
+        try? modelContext.save()
 
         dismiss()
     }

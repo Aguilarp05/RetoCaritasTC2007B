@@ -764,7 +764,7 @@ struct NuevoPacienteView: View {
                     Picker("Personal", selection: $medicoSeleccionado) {
                         Text("Selecciona quién atiende").tag("")
                         ForEach(activos) { p in
-                            Text("\(p.nombreCompleto) · \(p.especialidad)").tag(p.nombreCompleto)
+                            Text(p.nombreCompleto).tag(p.nombreCompleto)
                         }
                     }
                     .pickerStyle(.menu)
@@ -1074,6 +1074,9 @@ struct NuevoPacienteView: View {
             frecuenciaRespiratoria: Int(frecuenciaResp)
         )
         nuevoPaciente.consultas.append(consulta)
+        consulta.jornada = jornadaActiva
+        consulta.personalMedico = jornadaActiva?.personal.first { $0.nombreCompleto == medicoSeleccionado }
+            ?? todoElPersonal.first { $0.nombreCompleto == medicoSeleccionado }
 
         let consentimiento = ConsentimientoPrivacidad(
             paciente:       nuevoPaciente,
@@ -1140,13 +1143,10 @@ struct VistaFirma: View {
 
 #Preview {
     NuevoPacienteView()
-<<<<<<< Updated upstream
         .modelContainer(
             for: [Paciente.self, Consulta.self, MedicamentoPaciente.self,
                   Jornada.self, Locacion.self, ConsentimientoPrivacidad.self],
             inMemory: true
         )
-=======
         .frame(width: 768, height: 1024)
->>>>>>> Stashed changes
 }
