@@ -132,10 +132,9 @@ struct NuevaConsultaView: View {
                                 Text("Médico / Personal")
                                     .font(.caption)
                                     .foregroundStyle(Color.caritasGris)
-                                let base = jornadaActiva.map { $0.personal } ?? todoElPersonal.filter { $0.esActivo }
-                let activos = base.filter { p in
-                    p.areasDeServicio.isEmpty || p.areasDeServicio.contains(tipoConsulta.rawValue)
-                }
+
+                                let activos = personalDisponibleParaConsulta()
+
                                 if activos.isEmpty {
                                     TextField("Nombre del médico", text: $medico)
                                         .padding(12)
@@ -146,7 +145,12 @@ struct NuevaConsultaView: View {
                                     Picker("Personal", selection: $medico) {
                                         Text("Selecciona quién atiende").tag("")
                                         ForEach(activos) { p in
+<<<<<<< HEAD
                                             Text(p.nombreCompleto).tag(p.nombreCompleto)
+=======
+                                            Text("\(p.nombreCompleto) · \(p.especialidad)")
+                                                .tag(p.nombreCompleto)
+>>>>>>> 491087b2c5f6295a2423fbd8e81be9c4d360d4fe
                                         }
                                     }
                                     .pickerStyle(.menu)
@@ -244,7 +248,10 @@ struct NuevaConsultaView: View {
     }
 
     private func botonTipoConsulta(_ tipo: TipoConsulta) -> some View {
-        Button { tipoConsulta = tipo } label: {
+        Button {
+            tipoConsulta = tipo
+            medico = ""
+        } label: {
             Text(tipo.rawValue)
                 .font(.subheadline)
                 .fontWeight(.medium)
@@ -259,6 +266,81 @@ struct NuevaConsultaView: View {
                         .stroke(tipoConsulta == tipo ? Color.caritasPrimario : Color.clear, lineWidth: 1)
                 )
         }
+    }
+
+    private func personalDisponibleParaConsulta() -> [Personal] {
+        let personalDeJornada = jornadaActiva?.personal ?? []
+        let todoActivo = todoElPersonal.filter { $0.esActivo }
+
+        let base = personalDeJornada.isEmpty
+            ? todoActivo
+            : personalDeJornada + todoActivo
+
+        var nombresVistos = Set<String>()
+
+        let sinDuplicados = base.filter { personal in
+            let clave = personal.nombreCompleto
+            if nombresVistos.contains(clave) {
+                return false
+            } else {
+                nombresVistos.insert(clave)
+                return true
+            }
+        }
+
+        return sinDuplicados.filter { personal in
+            puedeAtender(personal, consulta: tipoConsulta)
+        }
+    }
+
+    private func puedeAtender(_ personal: Personal, consulta: TipoConsulta) -> Bool {
+        let consultaNormalizada = normalizar(consulta.rawValue)
+
+        var etiquetas = personal.areasDeServicio.map { normalizar($0) }
+        etiquetas.append(normalizar(personal.especialidad))
+
+        etiquetas = etiquetas.filter { !$0.isEmpty }
+
+        if etiquetas.isEmpty {
+            return true
+        }
+
+        return etiquetas.contains { etiqueta in
+            etiqueta == consultaNormalizada ||
+            etiqueta.contains(consultaNormalizada) ||
+            consultaNormalizada.contains(etiqueta) ||
+
+            (consulta == .consultaGeneral &&
+             (etiqueta.contains("medico") ||
+              etiqueta.contains("general") ||
+              etiqueta.contains("consulta"))) ||
+
+            (consulta == .entregaMedicamentos &&
+             (etiqueta.contains("farmaceut") ||
+              etiqueta.contains("medicamento") ||
+              etiqueta.contains("medicina"))) ||
+
+            (consulta == .optometrista &&
+             (etiqueta.contains("opto") ||
+              etiqueta.contains("oftal") ||
+              etiqueta.contains("vision") ||
+              etiqueta.contains("visual"))) ||
+
+            (consulta == .dental &&
+             (etiqueta.contains("dental") ||
+              etiqueta.contains("dentista") ||
+              etiqueta.contains("odont")))
+        }
+    
+
+    
+    }
+
+    private func normalizar(_ texto: String) -> String {
+        texto
+            .lowercased()
+            .folding(options: .diacriticInsensitive, locale: .current)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func botonToggle(_ etiqueta: String, valor: Bool, binding: Binding<Bool>) -> some View {

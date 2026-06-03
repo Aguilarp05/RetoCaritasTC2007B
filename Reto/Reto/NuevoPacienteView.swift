@@ -748,10 +748,17 @@ struct NuevoPacienteView: View {
                 Text("Médico / Personal asignado *")
                     .font(.caption)
                     .foregroundStyle(Color.caritasGris)
-                let base = jornadaActiva.map { $0.personal } ?? todoElPersonal.filter { $0.esActivo }
+
+                let personalDeJornada = jornadaActiva?.personal ?? []
+                let base = personalDeJornada.isEmpty
+                    ? todoElPersonal.filter { $0.esActivo }
+                    : personalDeJornada.filter { $0.esActivo }
+
                 let activos = base.filter { p in
-                    p.areasDeServicio.isEmpty || p.areasDeServicio.contains(servicioSeleccionado)
+                    p.areasDeServicio.isEmpty ||
+                    p.areasDeServicio.contains(servicioSeleccionado)
                 }
+
                 if activos.isEmpty {
                     Text("Sin personal registrado — ve a 'Personal medico' para dar de alta al equipo")
                         .font(.caption)
@@ -764,7 +771,12 @@ struct NuevoPacienteView: View {
                     Picker("Personal", selection: $medicoSeleccionado) {
                         Text("Selecciona quién atiende").tag("")
                         ForEach(activos) { p in
+<<<<<<< HEAD
                             Text(p.nombreCompleto).tag(p.nombreCompleto)
+=======
+                            Text("\(p.nombreCompleto) · \(p.especialidad)")
+                                .tag(p.nombreCompleto)
+>>>>>>> 491087b2c5f6295a2423fbd8e81be9c4d360d4fe
                         }
                     }
                     .pickerStyle(.menu)
