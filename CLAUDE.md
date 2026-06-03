@@ -4,6 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
+<<<<<<< Updated upstream
 iOS/iPadOS app for **Cáritas** — a Catholic charity that runs mobile medical brigades in rural Mexican communities. The app manages patient registration, medical consultations, medications, medical staff, and per-jornada (brigade day) statistics. The UI and variable names are primarily in Spanish.
 
 The Xcode project is at `Reto/Reto.xcodeproj`. All source lives under `Reto/Reto/`.
@@ -18,10 +19,25 @@ xcodebuild -project Reto/Reto.xcodeproj -scheme Reto -destination 'platform=iOS 
 
 # Run unit tests
 xcodebuild -project Reto/Reto.xcodeproj -scheme Reto -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' test
+=======
+iOS/iPadOS app for **Cáritas** (a humanitarian organization) to manage patient medical records. Built with SwiftUI + SwiftData, targeting iPad as the primary device.
+
+## Build & Run
+
+Open `Reto/Reto.xcodeproj` in Xcode and run the `Reto` scheme on an iPad simulator or device.
+
+```bash
+# Build from command line
+xcodebuild -project Reto/Reto.xcodeproj -scheme Reto -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M4)' build
+
+# Run tests
+xcodebuild -project Reto/Reto.xcodeproj -scheme Reto -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M4)' test
+>>>>>>> Stashed changes
 ```
 
 ## Architecture
 
+<<<<<<< Updated upstream
 **SwiftUI + SwiftData**, no external dependencies. Backend sync via `CaritasSyncVM` (FastAPI + MySQL, requires school VPN).
 
 ### Data models (`@Model` classes backed by SwiftData)
@@ -108,3 +124,46 @@ Presión arterial is captured as two separate fields (sistólica / diastólica) 
 - Feature: condiciones crónicas — model has `[String]` but no UI to add them in the wizard
 - Sync: personal, jornadas, recetas not yet synced to backend
 - Sync: `POST /registros-clinicos` must return `id_registro` before recetas can be synced
+=======
+The app uses **SwiftData** for local persistence. The data model has three `@Model` classes with cascade-delete relationships:
+
+- `Paciente` — the root entity. Owns `[Consulta]` and `[MedicamentoPaciente]` via `@Relationship(deleteRule: .cascade)`.
+- `Consulta` — a single medical visit attached to a `Paciente`.
+- `MedicamentoPaciente` — a prescribed medication attached to a `Paciente`.
+
+`RetoApp.swift` bootstraps the `ModelContainer` with `Item.self` (the Xcode template placeholder — **not yet replaced with `Paciente.self`**). This means `Paciente`, `Consulta`, and `MedicamentoPaciente` are not currently registered in the container and will not persist between launches. This is a known gap to fix.
+
+There is also a top-level `@Relationship` declaration in `Paciente.swift` outside any class — a stray line that should be removed.
+
+## Views
+
+| File | Role |
+|---|---|
+| `ContentView.swift` | Template placeholder — not wired to real data yet |
+| `NuevoPacienteView.swift` | Multi-step wizard (6–8 steps depending on service type) for registering a new patient; includes PDF privacy notice viewer and signature capture canvas |
+| `VistaPacienteRegistrado.swift` | Split-pane patient record screen with sidebar (`VistaPacienteRegistrado`) + tabbed main area (`ExpedientePacienteView`) showing Historial / Datos clínicos / Medicamentos / Línea de tiempo |
+| `NuevaConsultaView.swift` | Sheet form for logging a new `Consulta` and optionally adding a `MedicamentoPaciente` |
+
+## Colors
+
+All brand colors are defined as `Color` extensions in `Colores.swift`:
+
+| Name | Hex |
+|---|---|
+| `caritasPrimario` | `#009CA6` (teal) |
+| `caritasAcento` | `#FF7F32` (orange) |
+| `caritasAzul` | `#003B5C` (dark blue) |
+| `caritasGris` | `#888B8D` |
+| `caritasSuave` | `#D1E0D7` (mint, used for selected-state backgrounds) |
+
+Use these semantic color names throughout the UI — never raw hex values in view files.
+
+## Key Conventions
+
+- All UI strings are in Spanish (the app's target users are Spanish-speaking).
+- `NuevoPacienteView` drives its step count via `pasosDinamicos`, which adds "signos_vitales" and "socioeconomico" steps only when service is "Consulta general". New steps must be added to both `pasosDinamicos` and `tituloPaso`.
+- `Paciente.nombreCompleto` is a computed property that joins the four name fields, filtering nils.
+- `Paciente.edad` is computed from `fechaNacimiento` at read time — it is not stored.
+- `MedicamentoPaciente.estaActivo` returns `true` when `fechaFin == nil`.
+- The privacy PDF (`AVISO DE PRIVACIDAD 2025.pdf`) is bundled in the app target and accessed via `Bundle.main.url(forResource:withExtension:)`.
+>>>>>>> Stashed changes

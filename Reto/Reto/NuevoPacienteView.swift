@@ -1140,9 +1140,13 @@ struct VistaFirma: View {
 
 #Preview {
     NuevoPacienteView()
+<<<<<<< Updated upstream
         .modelContainer(
             for: [Paciente.self, Consulta.self, MedicamentoPaciente.self,
                   Jornada.self, Locacion.self, ConsentimientoPrivacidad.self],
             inMemory: true
         )
+=======
+        .frame(width: 768, height: 1024)
+>>>>>>> Stashed changes
 }
