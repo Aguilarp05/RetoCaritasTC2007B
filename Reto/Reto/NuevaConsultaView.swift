@@ -4,8 +4,15 @@ import SwiftData
 struct MedicamentoTemporal: Identifiable {
     let id = UUID()
     var nombre: String
+    var dosisAmount: String
+    var dosisUnidad: String
+    var duracion: String
     var indicacion: String
     var fechaInicio: Date
+
+    var dosisCompleta: String {
+        dosisAmount.isEmpty ? "" : "\(dosisAmount) \(dosisUnidad)"
+    }
 }
 
 struct NuevaConsultaView: View {
@@ -28,6 +35,9 @@ struct NuevaConsultaView: View {
     @State private var medico = ""
 
     @State private var medicamentoNombre = ""
+    @State private var medicamentoDosisAmount = ""
+    @State private var medicamentoDosisUnidad = "mg"
+    @State private var medicamentoDuracion = ""
     @State private var medicamentoIndicacion = ""
     @State private var medicamentoFechaInicio = Date()
     @State private var medicamentosIndicados: [MedicamentoTemporal] = []
@@ -145,12 +155,8 @@ struct NuevaConsultaView: View {
                                     Picker("Personal", selection: $medico) {
                                         Text("Selecciona quién atiende").tag("")
                                         ForEach(activos) { p in
-<<<<<<< HEAD
-                                            Text(p.nombreCompleto).tag(p.nombreCompleto)
-=======
-                                            Text("\(p.nombreCompleto) · \(p.especialidad)")
+                                                Text("\(p.nombreCompleto) · \(p.especialidad)")
                                                 .tag(p.nombreCompleto)
->>>>>>> 491087b2c5f6295a2423fbd8e81be9c4d360d4fe
                                         }
                                     }
                                     .pickerStyle(.menu)
@@ -216,14 +222,14 @@ struct NuevaConsultaView: View {
                 .font(.caption)
                 .foregroundStyle(Color.caritasGris)
             if multilinea {
-                TextField(placeholder.isEmpty ? etiqueta : placeholder, text: texto, axis: .vertical)
+                TextField(placeholder, text: texto, axis: .vertical)
                     .lineLimit(3...5)
                     .padding(12)
                     .background(Color(.systemGray6))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .font(.subheadline)
             } else {
-                TextField(placeholder.isEmpty ? etiqueta : placeholder, text: texto)
+                TextField(placeholder, text: texto)
                     .padding(12)
                     .background(Color(.systemGray6))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -378,8 +384,8 @@ struct NuevaConsultaView: View {
 
             seccionHeader("Signos físicos generales")
             VStack(spacing: 12) {
-                campo("Peso (kg)", placeholder: "Ej. 65.5", texto: $peso)
-                campo("Talla (cm)", placeholder: "Ej. 165", texto: $talla)
+                campo("Peso (kg)", texto: $peso)
+                campo("Talla (cm)", texto: $talla)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Presión arterial")
                         .font(.caption)
@@ -404,10 +410,10 @@ struct NuevaConsultaView: View {
                             .font(.subheadline)
                     }
                 }
-                campo("Pulso (lpm)", placeholder: "Ej. 72", texto: $pulso)
-                campo("Frec. cardiaca", placeholder: "Ej. 75", texto: $frecuenciaCardiaca)
-                campo("Frec. respiratoria", placeholder: "Ej. 16", texto: $frecuenciaRespiratoria)
-                campo("Perímetro abdominal (cm)", placeholder: "Ej. 85", texto: $perimetroAbdominal)
+                campo("Pulso (lpm)", texto: $pulso)
+                campo("Frec. cardiaca", texto: $frecuenciaCardiaca)
+                campo("Frec. respiratoria", texto: $frecuenciaRespiratoria)
+                campo("Perímetro abdominal (cm)", texto: $perimetroAbdominal)
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
@@ -415,7 +421,14 @@ struct NuevaConsultaView: View {
             Divider()
 
             seccionHeader("Procedimientos")
-            campo("Procedimientos", placeholder: "Separados por coma", texto: $procedimientosTexto)
+            campo("Procedimientos", texto: $procedimientosTexto)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+
+            Divider()
+
+            seccionHeader("Medicamentos recetados")
+            medicamentosIndicadosSection
                 .padding(.horizontal, 20)
                 .padding(.bottom, 20)
 
@@ -457,6 +470,13 @@ struct NuevaConsultaView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
 
+            Divider()
+
+            seccionHeader("Medicamentos recetados")
+            medicamentosIndicadosSection
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+
         case .dental:
             seccionHeader("Consulta dental")
             VStack(spacing: 12) {
@@ -468,6 +488,13 @@ struct NuevaConsultaView: View {
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
+
+            Divider()
+
+            seccionHeader("Medicamentos recetados")
+            medicamentosIndicadosSection
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
         }
     }
 
@@ -484,8 +511,9 @@ struct NuevaConsultaView: View {
                                     .font(.subheadline)
                                     .fontWeight(.medium)
                                     .foregroundStyle(Color.caritasAzul)
-                                if !med.indicacion.isEmpty {
-                                    Text(med.indicacion)
+                                let detalle = [med.dosisCompleta, med.duracion].filter { !$0.isEmpty }.joined(separator: " · ")
+                                if !detalle.isEmpty {
+                                    Text(detalle)
                                         .font(.caption)
                                         .foregroundStyle(Color.caritasGris)
                                 }
@@ -512,7 +540,32 @@ struct NuevaConsultaView: View {
             }
 
             campo("Nombre del medicamento", texto: $medicamentoNombre)
-            campo("Indicación", texto: $medicamentoIndicacion)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Dosis")
+                    .font(.caption)
+                    .foregroundStyle(Color.caritasGris)
+                HStack(spacing: 8) {
+                    TextField("", text: $medicamentoDosisAmount)
+                        .keyboardType(.decimalPad)
+                        .padding(10)
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .font(.subheadline)
+                        .frame(maxWidth: .infinity)
+                    Picker("", selection: $medicamentoDosisUnidad) {
+                        ForEach(unidadesDosis, id: \.self) { Text($0).tag($0) }
+                    }
+                    .pickerStyle(.menu)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 6)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+            }
+
+            campo("Duración", texto: $medicamentoDuracion)
+            campo("Indicación (opcional)", placeholder: "Opcional", texto: $medicamentoIndicacion)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Fecha de inicio")
@@ -540,10 +593,16 @@ struct NuevaConsultaView: View {
     private func agregarMedicamento() {
         medicamentosIndicados.append(MedicamentoTemporal(
             nombre: medicamentoNombre,
+            dosisAmount: medicamentoDosisAmount,
+            dosisUnidad: medicamentoDosisUnidad,
+            duracion: medicamentoDuracion,
             indicacion: medicamentoIndicacion,
             fechaInicio: medicamentoFechaInicio
         ))
         medicamentoNombre = ""
+        medicamentoDosisAmount = ""
+        medicamentoDosisUnidad = "mg"
+        medicamentoDuracion = ""
         medicamentoIndicacion = ""
         medicamentoFechaInicio = Date()
     }
@@ -552,12 +611,12 @@ struct NuevaConsultaView: View {
         let nuevaConsulta = Consulta(
             tipoConsulta:          tipoConsulta,
             fecha:                 fecha,
-            lugar:                 lugar,
-            motivo:                motivo,
-            diagnostico:           diagnostico,
-            notasMedico:           notasMedico,
-            medicamentos:          medicamentosIndicados.map { $0.nombre },
-            procedimientos:        separarPorComas(procedimientosTexto),
+            lugar:                 lugar.textoLibre,
+            motivo:                motivo.textoLibre,
+            diagnostico:           diagnostico.textoLibre,
+            notasMedico:           notasMedico.textoLibre,
+            medicamentos:          medicamentosIndicados.map { $0.nombre.nombrePropio },
+            procedimientos:        separarPorComas(procedimientosTexto).map { $0.textoLibre },
             medico:                medico,
             peso:                  Double(peso),
             talla:                 Double(talla),
@@ -571,16 +630,21 @@ struct NuevaConsultaView: View {
             medicamentosEntregados: tipoConsulta == .entregaMedicamentos ? medicamentosEntregados : nil,
             cantidadMedicamentos:  tipoConsulta == .entregaMedicamentos ? Int(cantidadMedicamento) : nil
         )
+        nuevaConsulta.recetasJSON = RecetaLocal.encode(medicamentosIndicados)
         paciente.consultas.append(nuevaConsulta)
         nuevaConsulta.jornada = jornadaActiva
         nuevaConsulta.personalMedico = jornadaActiva?.personal.first { $0.nombreCompleto == medico }
             ?? todoElPersonal.first { $0.nombreCompleto == medico }
 
         for med in medicamentosIndicados {
+            let indicacionCompleta = [med.dosisCompleta, med.indicacion]
+                .filter { !$0.isEmpty }.joined(separator: " · ")
             paciente.medicamentos.append(MedicamentoPaciente(
-                nombre:    med.nombre,
-                indicacion: med.indicacion,
-                fechaInicio: med.fechaInicio
+                nombre:             med.nombre,
+                indicacion:         indicacionCompleta,
+                fechaInicio:        med.fechaInicio,
+                duracion:           med.duracion.isEmpty ? nil : med.duracion,
+                notasMedicamento:   nil
             ))
         }
         dismiss()

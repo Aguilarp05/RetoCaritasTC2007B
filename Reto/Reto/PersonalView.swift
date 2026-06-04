@@ -625,12 +625,15 @@ struct FormularioPersonalView: View {
     }
 
     private func guardar() {
-        let matFinal = matricula.trimmingCharacters(in: .whitespaces).isEmpty ? nil : matricula
-        let areas    = areasDeServicio.sorted()
+        let matFinal     = matricula.limpio.isEmpty ? nil : matricula.limpio.codigoNormalizado
+        let areas        = areasDeServicio.sorted()
+        let nombreN      = nombre.nombrePropio
+        let apellidosN   = apellidos.nombrePropio
+        let curpN        = curp.codigoNormalizado
         if let p = personal {
-            p.nombrePersonal    = nombre.trimmingCharacters(in: .whitespaces)
-            p.apellidosPersonal = apellidos.trimmingCharacters(in: .whitespaces)
-            p.curpPersonal      = curp.uppercased().trimmingCharacters(in: .whitespaces)
+            p.nombrePersonal    = nombreN
+            p.apellidosPersonal = apellidosN
+            p.curpPersonal      = curpN
             p.sexoPersonal      = sexo
             p.areasDeServicio   = areas
             p.matricula         = matFinal
@@ -638,9 +641,9 @@ struct FormularioPersonalView: View {
             p.sincronizado      = false
         } else {
             modelContext.insert(Personal(
-                curpPersonal:      curp,
-                nombrePersonal:    nombre.trimmingCharacters(in: .whitespaces),
-                apellidosPersonal: apellidos.trimmingCharacters(in: .whitespaces),
+                curpPersonal:      curpN,
+                nombrePersonal:    nombreN,
+                apellidosPersonal: apellidosN,
                 sexoPersonal:      sexo,
                 areasDeServicio:   areas,
                 matricula:         matFinal

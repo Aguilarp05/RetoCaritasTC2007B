@@ -357,7 +357,14 @@ struct TarjetaConsultaView: View {
                 filaExpediente(etiqueta: "Notas",    valor: consulta.notasMedico)
             }
 
-            if !consulta.medicamentos.isEmpty {
+            let recetas = RecetaLocal.decode(consulta.recetasJSON)
+            if !recetas.isEmpty {
+                Divider().padding(.leading, 24)
+                let resumen = recetas.map { r in
+                    [r.nombre, r.dosis, r.duracion].filter { !$0.isEmpty }.joined(separator: " ")
+                }.joined(separator: " · ")
+                filaExpediente(etiqueta: "Recetas", valor: resumen)
+            } else if !consulta.medicamentos.isEmpty {
                 Divider().padding(.leading, 24)
                 filaExpediente(etiqueta: "Medicamentos", valor: consulta.medicamentos.joined(separator: ", "))
             }
@@ -612,6 +619,11 @@ struct MedicamentoFilaView: View {
                 }
                 if !medicamento.indicacion.isEmpty {
                     Text(medicamento.indicacion)
+                        .font(.caption)
+                        .foregroundStyle(Color.caritasGris)
+                }
+                if let dur = medicamento.duracion, !dur.isEmpty {
+                    Text(dur)
                         .font(.caption)
                         .foregroundStyle(Color.caritasGris)
                 }

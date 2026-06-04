@@ -14,6 +14,7 @@ class ConsentimientoPrivacidad {
     var acepta: Bool
 
     var paciente: Paciente?
+    var sincronizado: Bool?
 
     init(paciente: Paciente, nombreFirmante: String, acepta: Bool = true) {
         self.idConsentimiento = UUID()

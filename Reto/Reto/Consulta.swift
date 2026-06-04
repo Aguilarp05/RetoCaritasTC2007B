@@ -50,6 +50,8 @@ class Consulta {
     var medicamentosEntregados: String?
     var cantidadMedicamentos: Int?
 
+    var recetasJSON: String = ""
+
     var jornada: Jornada?
     var personalMedico: Personal?
     var sincronizado: Bool?

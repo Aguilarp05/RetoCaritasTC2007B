@@ -30,6 +30,7 @@ struct NuevoPacienteView: View {
         if tipoPaciente == "regresa" { return ["identificacion"] }
         var pasos = ["identificacion", "datos_personales", "consulta"]
         if servicioSeleccionado == "Consulta general" { pasos.append("signos_vitales") }
+        if servicioSeleccionado != "Entrega de medicamentos" { pasos.append("recetas") }
         pasos.append("privacidad")
         return pasos
     }
@@ -82,6 +83,9 @@ struct NuevoPacienteView: View {
     @State private var numIntegrantes     = 0
     @State private var gradoEstudios      = ""
     @State private var ingresosMensuales  = ""
+
+    // Receta médica
+    @State private var recetasWizard: [RecetaWizard] = [RecetaWizard()]
 
     // Privacidad
     @State private var aceptaPrivacidad = false
@@ -197,6 +201,7 @@ struct NuevoPacienteView: View {
                 case "datos_personales": paso2
                 case "consulta":         paso3
                 case "signos_vitales":   paso4
+                case "recetas":          pasoRecetas
                 case "privacidad":       paso5
                 default:                 EmptyView()
                 }
@@ -213,6 +218,7 @@ struct NuevoPacienteView: View {
         case "datos_personales": return "Datos personales y residencia"
         case "consulta":         return "Motivo de consulta"
         case "signos_vitales":   return "Signos vitales"
+        case "recetas":          return "Receta médica"
         case "privacidad":       return "Aviso de privacidad"
         default:                 return ""
         }
@@ -274,7 +280,7 @@ struct NuevoPacienteView: View {
         campoFoco: Campo? = nil,
         siguiente: Campo? = nil
     ) -> some View {
-        let hint = placeholder.isEmpty ? etiqueta : placeholder
+        let hint = placeholder
         VStack(alignment: .leading, spacing: 4) {
             Text(etiqueta)
                 .font(.caption)
@@ -568,7 +574,6 @@ struct NuevoPacienteView: View {
         VStack(alignment: .leading, spacing: 14) {
 
             campo("Primer nombre *",
-                  placeholder: "Primer nombre",
                   text: $primerNombre,
                   campoFoco: .primerNombre,
                   siguiente: .segundoNombre)
@@ -580,7 +585,6 @@ struct NuevoPacienteView: View {
                   siguiente: .primerApellido)
 
             campo("Apellido paterno *",
-                  placeholder: "Apellido paterno",
                   text: $primerApellido,
                   campoFoco: .primerApellido,
                   siguiente: .segundoApellido)
@@ -624,7 +628,6 @@ struct NuevoPacienteView: View {
             }
 
             campo("Teléfono (opcional)",
-                  placeholder: "10 dígitos",
                   text: $telefono,
                   keyboard: .phonePad,
                   campoFoco: .telefono,
@@ -652,7 +655,7 @@ struct NuevoPacienteView: View {
             }
 
             campo("Comunidad / Colonia",
-                  placeholder: "Opcional — nombre de la colonia",
+                  placeholder: "Opcional",
                   text: $comunidad,
                   campoFoco: .comunidad,
                   siguiente: nil)
@@ -691,20 +694,31 @@ struct NuevoPacienteView: View {
     // MARK: - Paso 3 — Consulta
 
     var paso3: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        let serviciosDisponibles: [String] = {
+            guard let j = jornadaActiva, !j.serviciosDisponibles.isEmpty else { return servicios }
+            let filtrados = servicios.filter { j.serviciosDisponibles.contains($0) }
+            return filtrados.isEmpty ? servicios : filtrados
+        }()
+
+        return VStack(alignment: .leading, spacing: 14) {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Servicio solicitado")
                     .font(.caption)
                     .foregroundStyle(Color.caritasGris)
                 Picker("Servicio", selection: $servicioSeleccionado) {
-                    ForEach(servicios, id: \.self) { Text($0).tag($0) }
+                    ForEach(serviciosDisponibles, id: \.self) { Text($0).tag($0) }
                 }
                 .pickerStyle(.menu)
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(.systemGray6))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
+                .onAppear {
+                    if !serviciosDisponibles.contains(servicioSeleccionado) {
+                        servicioSeleccionado = serviciosDisponibles.first ?? "Consulta general"
+                    }
+                }
             }
 
             if servicioSeleccionado == "Entrega de medicamentos" {
@@ -753,7 +767,6 @@ struct NuevoPacienteView: View {
                 let base = personalDeJornada.isEmpty
                     ? todoElPersonal.filter { $0.esActivo }
                     : personalDeJornada.filter { $0.esActivo }
-
                 let activos = base.filter { p in
                     p.areasDeServicio.isEmpty ||
                     p.areasDeServicio.contains(servicioSeleccionado)
@@ -771,12 +784,8 @@ struct NuevoPacienteView: View {
                     Picker("Personal", selection: $medicoSeleccionado) {
                         Text("Selecciona quién atiende").tag("")
                         ForEach(activos) { p in
-<<<<<<< HEAD
-                            Text(p.nombreCompleto).tag(p.nombreCompleto)
-=======
                             Text("\(p.nombreCompleto) · \(p.especialidad)")
                                 .tag(p.nombreCompleto)
->>>>>>> 491087b2c5f6295a2423fbd8e81be9c4d360d4fe
                         }
                     }
                     .pickerStyle(.menu)
@@ -815,10 +824,10 @@ struct NuevoPacienteView: View {
     var paso4: some View {
         VStack(alignment: .leading, spacing: 14) {
 
-            campo("Peso (kg)", placeholder: "Ej. 65.5", text: $peso,
+            campo("Peso (kg)", text: $peso,
                   keyboard: .decimalPad, campoFoco: .peso, siguiente: .talla)
 
-            campo("Talla (cm)", placeholder: "Ej. 165", text: $talla,
+            campo("Talla (cm)", text: $talla,
                   keyboard: .decimalPad, campoFoco: .talla, siguiente: .presionSistolica)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -850,16 +859,16 @@ struct NuevoPacienteView: View {
                 }
             }
 
-            campo("Pulso (lpm)", placeholder: "Ej. 72", text: $pulso,
+            campo("Pulso (lpm)", text: $pulso,
                   keyboard: .numberPad, campoFoco: .pulso, siguiente: .frecuenciaCardiaca)
 
-            campo("Frec. cardiaca (lpm)", placeholder: "Ej. 75", text: $frecuenciaCardiaca,
+            campo("Frec. cardiaca (lpm)", text: $frecuenciaCardiaca,
                   keyboard: .numberPad, campoFoco: .frecuenciaCardiaca, siguiente: .frecuenciaResp)
 
-            campo("Frec. respiratoria", placeholder: "Ej. 16", text: $frecuenciaResp,
+            campo("Frec. respiratoria", text: $frecuenciaResp,
                   keyboard: .numberPad, campoFoco: .frecuenciaResp, siguiente: .perimetroAbdominal)
 
-            campo("Perímetro abdominal (cm)", placeholder: "Ej. 85", text: $perimetroAbdominal,
+            campo("Perímetro abdominal (cm)", text: $perimetroAbdominal,
                   keyboard: .decimalPad, campoFoco: .perimetroAbdominal, siguiente: nil)
 
             separador("Datos socioeconómicos")
@@ -934,6 +943,89 @@ struct NuevoPacienteView: View {
         "Sin ingresos", "Menos de $2,000", "$2,000 - $5,000",
         "$5,000 - $10,000", "$10,000 - $20,000", "Más de $20,000",
     ]
+
+    // MARK: - Paso Recetas
+
+    var pasoRecetas: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Indica los medicamentos recetados. Puedes dejar este apartado vacío si no aplica.")
+                .font(.subheadline)
+                .foregroundStyle(Color.caritasGris)
+
+            // Encabezados de columna
+            HStack(spacing: 8) {
+                Text("Medicamento")
+                    .font(.caption).foregroundStyle(Color.caritasGris)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("Cantidad")
+                    .font(.caption).foregroundStyle(Color.caritasGris)
+                    .frame(width: 70, alignment: .leading)
+                Text("Unidad")
+                    .font(.caption).foregroundStyle(Color.caritasGris)
+                    .frame(width: 90, alignment: .leading)
+                Text("Duración")
+                    .font(.caption).foregroundStyle(Color.caritasGris)
+                    .frame(width: 100, alignment: .leading)
+                Spacer().frame(width: 32)
+            }
+
+            ForEach($recetasWizard) { $receta in
+                HStack(spacing: 8) {
+                    TextField("", text: $receta.nombre)
+                        .padding(10)
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .font(.subheadline)
+                        .frame(maxWidth: .infinity)
+
+                    TextField("", text: $receta.dosisAmount)
+                        .keyboardType(.decimalPad)
+                        .padding(10)
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .font(.subheadline)
+                        .frame(width: 70)
+
+                    Picker("", selection: $receta.dosisUnidad) {
+                        ForEach(unidadesDosis, id: \.self) { Text($0).tag($0) }
+                    }
+                    .pickerStyle(.menu)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 6)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .frame(width: 90)
+
+                    TextField("", text: $receta.duracion)
+                        .padding(10)
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .font(.subheadline)
+                        .frame(width: 100)
+
+                    Button {
+                        recetasWizard.removeAll { $0.id == receta.id }
+                    } label: {
+                        Image(systemName: "minus.circle.fill")
+                            .foregroundStyle(recetasWizard.count > 1 ? Color.caritasGris : Color.clear)
+                            .font(.title3)
+                    }
+                    .disabled(recetasWizard.count <= 1)
+                    .frame(width: 32)
+                }
+            }
+
+            Button {
+                recetasWizard.append(RecetaWizard())
+            } label: {
+                Label("Agregar medicamento", systemImage: "plus.circle.fill")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(Color.caritasPrimario)
+            }
+            .padding(.top, 4)
+        }
+    }
 
     // MARK: - Paso 5 — Privacidad
 
@@ -1046,20 +1138,28 @@ struct NuevoPacienteView: View {
 
         let tipoRegistro: TipoPaciente = (tipoPaciente == "regresa") ? .subsecuente : .inicial
 
+        let nombreN    = primerNombre.nombrePropio
+        let nombre2N   = segundoNombre.nombrePropio
+        let apellido1N = primerApellido.nombrePropio
+        let apellido2N = segundoApellido.nombrePropio
+        let curpN      = curp.codigoNormalizado
+        let comunidadN = comunidad.nombrePropio
+        let municipioN = municipioSeleccionado.nombrePropio
+
         let nuevoPaciente = Paciente(
-            primerNombre:          primerNombre,
-            segundoNombre:         segundoNombre.isEmpty ? nil : segundoNombre,
-            primerApellido:        primerApellido,
-            segundoApellido:       segundoApellido.isEmpty ? nil : segundoApellido,
-            curpPaciente:          curp.isEmpty ? nil : curp,
+            primerNombre:          nombreN,
+            segundoNombre:         nombre2N.isEmpty ? nil : nombre2N,
+            primerApellido:        apellido1N,
+            segundoApellido:       apellido2N.isEmpty ? nil : apellido2N,
+            curpPaciente:          curpN.isEmpty ? nil : curpN,
             notas:                 nil,
             fechaNacimiento:       fechaNacimiento,
-            lugarNacimiento:       municipioSeleccionado.isEmpty ? comunidad : municipioSeleccionado,
+            lugarNacimiento:       municipioN.isEmpty ? comunidadN : municipioN,
             caritasId:             caritasIdGenerado,
             sexoPaciente:          sexo,
-            telefono:              telefono.isEmpty ? nil : telefono,
+            telefono:              telefono.limpio.isEmpty ? nil : telefono.limpio,
             estado:                estadoSeleccionado.isEmpty ? nil : estadoSeleccionado,
-            municipio:             municipioSeleccionado.isEmpty ? nil : municipioSeleccionado,
+            municipio:             municipioN.isEmpty ? nil : municipioN,
             condicionesCronicas:   [],
             numIntegrantesFamilia: numIntegrantes == 0 ? nil : numIntegrantes,
             ingresosMensuales:     ingresosMensuales.isEmpty ? nil : ingresosMensuales,
@@ -1071,10 +1171,10 @@ struct NuevoPacienteView: View {
         let consulta = Consulta(
             tipoConsulta:           tipoServicioMap,
             fecha:                  Date(),
-            lugar:                  comunidad,
-            motivo:                 motivoConsulta,
+            lugar:                  comunidadN,
+            motivo:                 motivoConsulta.textoLibre,
             diagnostico:            "",
-            notasMedico:            notasMedico,
+            notasMedico:            notasMedico.textoLibre,
             medico:                 medicoSeleccionado,
             tipoPaciente:           tipoRegistro,
             peso:                   Double(peso),
@@ -1085,6 +1185,12 @@ struct NuevoPacienteView: View {
             frecuenciaCardiaca:     Int(frecuenciaCardiaca),
             frecuenciaRespiratoria: Int(frecuenciaResp)
         )
+        let recetasValidas = recetasWizard.filter { !$0.nombre.trimmingCharacters(in: .whitespaces).isEmpty }
+        if !recetasValidas.isEmpty {
+            let locales = recetasValidas.map { RecetaLocal(nombre: $0.nombre, dosis: $0.dosisCompleta, duracion: $0.duracion, notas: nil) }
+            consulta.recetasJSON = (try? JSONEncoder().encode(locales)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            consulta.medicamentos = recetasValidas.map { $0.nombre }
+        }
         nuevoPaciente.consultas.append(consulta)
         consulta.jornada = jornadaActiva
         consulta.personalMedico = jornadaActiva?.personal.first { $0.nombreCompleto == medicoSeleccionado }
@@ -1113,10 +1219,25 @@ struct NuevoPacienteView: View {
         peso = ""; talla = ""; presionSistolica = ""; presionDiastolica = ""; pulso = ""
         frecuenciaCardiaca = ""; frecuenciaResp = ""; perimetroAbdominal = ""
         numIntegrantes = 0; gradoEstudios = ""; ingresosMensuales = ""
+        recetasWizard = [RecetaWizard()]
         aceptaPrivacidad = false; mostrarPDF = false; trazos = []
     }
 
 } // ← cierra NuevoPacienteView
+
+struct RecetaWizard: Identifiable {
+    let id = UUID()
+    var nombre: String = ""
+    var dosisAmount: String = ""
+    var dosisUnidad: String = "mg"
+    var duracion: String = ""
+
+    var dosisCompleta: String {
+        dosisAmount.isEmpty ? "" : "\(dosisAmount) \(dosisUnidad)"
+    }
+}
+
+let unidadesDosis = ["mg", "g", "ml", "tab.", "cáp.", "gotas", "sobre", "amp."]
 
 struct Line {
     var puntos: [CGPoint] = []

@@ -195,6 +195,60 @@ struct JornadaCreateDTO: Encodable {
     }
 }
 
+// MARK: - Receta local (usado en Consulta.recetasJSON y en sync)
+
+struct RecetaLocal: Codable {
+    let nombre: String
+    let dosis: String
+    let duracion: String
+    let notas: String?
+
+    static func encode(_ meds: [MedicamentoTemporal]) -> String {
+        let recetas = meds.map { RecetaLocal(nombre: $0.nombre, dosis: $0.dosisCompleta, duracion: $0.duracion, notas: $0.indicacion.isEmpty ? nil : $0.indicacion) }
+        guard let data = try? JSONEncoder().encode(recetas) else { return "" }
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    static func decode(_ json: String) -> [RecetaLocal] {
+        guard !json.isEmpty, let data = json.data(using: .utf8) else { return [] }
+        return (try? JSONDecoder().decode([RecetaLocal].self, from: data)) ?? []
+    }
+}
+
+// MARK: - DTOs Receta
+
+struct RecetaCreateDTO: Encodable {
+    let medicamento: String
+    let dosis: String
+    let duracion: String
+    let notas: String?
+}
+
+struct ConsultaOutDTO: Decodable {
+    let idRegistro: String
+    enum CodingKeys: String, CodingKey {
+        case idRegistro = "id_registro"
+    }
+}
+
+// MARK: - DTOs Consentimiento
+
+struct ConsentimientoCreateDTO: Encodable {
+    let idConsentimiento: String
+    let idPaciente: String
+    let nombreFirmante: String
+    let fechaFirma: String
+    let acepta: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case idConsentimiento = "id_consentimiento"
+        case idPaciente       = "id_paciente"
+        case nombreFirmante   = "nombre_firmante"
+        case fechaFirma       = "fecha_firma"
+        case acepta
+    }
+}
+
 // MARK: - DTOs Medicamento (medicamentos_paciente)
 
 struct MedicamentoCreateDTO: Encodable {
@@ -274,9 +328,10 @@ class CaritasSyncVM: ObservableObject {
         // 3. Descargar pacientes del servidor → devuelve mapa caritasId → serverUUID
         let caritasIdMap = await descargarPacientesDelServidor(context: context)
 
-        // 4. Subir consultas y medicamentos usando el mapa de IDs
+        // 4. Subir consultas, medicamentos y consentimientos usando el mapa de IDs
         await subirConsultasLocales(context: context, caritasIdMap: caritasIdMap)
         await subirMedicamentosLocales(context: context, caritasIdMap: caritasIdMap)
+        await subirConsentimientosLocales(context: context, caritasIdMap: caritasIdMap)
 
         actualizarPendientes(context: context)
         if mensajeError.isEmpty { ultimaSincronizacion = Date() }
@@ -286,7 +341,7 @@ class CaritasSyncVM: ObservableObject {
 
     func subirPersonalLocal(context: ModelContext) async {
         guard let url = URL(string: "\(baseURL)/personal") else { return }
-        let todos = (try? context.fetch(FetchDescriptor<Personal>())) ?? []
+        let todos = (try? context.fetch(FetchDescriptor<Personal>()))?.filter { $0.sincronizado != true } ?? []
 
         for persona in todos {
             do {
@@ -415,16 +470,42 @@ class CaritasSyncVM: ObservableObject {
                 request.httpBody = try JSONEncoder().encode(dto)
                 request.timeoutInterval = 10
 
-                let (_, response) = try await URLSession.shared.data(for: request)
+                let (data, response) = try await URLSession.shared.data(for: request)
                 if let http = response as? HTTPURLResponse,
                    (200...201).contains(http.statusCode) || http.statusCode == 409 {
                     consulta.sincronizado = true
+                    if let outDTO = try? JSONDecoder().decode(ConsultaOutDTO.self, from: data) {
+                        await subirRecetas(consulta, idRegistro: outDTO.idRegistro)
+                    }
                 }
             } catch {
                 print("Error consulta \(consulta.idConsulta): \(error.localizedDescription)")
             }
         }
         try? context.save()
+    }
+
+    // MARK: - Recetas: subida
+
+    private func subirRecetas(_ consulta: Consulta, idRegistro: String) async {
+        let recetas = RecetaLocal.decode(consulta.recetasJSON)
+        guard !recetas.isEmpty,
+              let url = URL(string: "\(baseURL)/registros-clinicos/\(idRegistro)/recetas") else { return }
+
+        for receta in recetas {
+            do {
+                let dto = RecetaCreateDTO(medicamento: receta.nombre, dosis: receta.dosis,
+                                         duracion: receta.duracion, notas: receta.notas)
+                var request = URLRequest(url: url)
+                request.httpMethod = "POST"
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.httpBody = try JSONEncoder().encode(dto)
+                request.timeoutInterval = 10
+                let (_, _) = try await URLSession.shared.data(for: request)
+            } catch {
+                print("Error receta '\(receta.nombre)': \(error.localizedDescription)")
+            }
+        }
     }
 
     // MARK: - Medicamentos: subida
@@ -467,23 +548,62 @@ class CaritasSyncVM: ObservableObject {
         try? context.save()
     }
 
+    // MARK: - Consentimientos: subida
+
+    func subirConsentimientosLocales(context: ModelContext, caritasIdMap: [String: String]) async {
+        guard let url = URL(string: "\(baseURL)/consentimientos") else { return }
+        let pendientes = (try? context.fetch(FetchDescriptor<ConsentimientoPrivacidad>()))?.filter { $0.sincronizado != true } ?? []
+
+        for consentimiento in pendientes {
+            do {
+                guard let paciente = consentimiento.paciente,
+                      let serverIdPaciente = caritasIdMap[paciente.caritasId]
+                else { print("Error consentimiento \(consentimiento.idConsentimiento): paciente no encontrado"); continue }
+
+                let dto = ConsentimientoCreateDTO(
+                    idConsentimiento: consentimiento.idConsentimiento.uuidString,
+                    idPaciente:       serverIdPaciente,
+                    nombreFirmante:   consentimiento.nombreFirmante,
+                    fechaFirma:       isoFormatter.string(from: consentimiento.fechaFirma),
+                    acepta:           consentimiento.acepta
+                )
+                var request = URLRequest(url: url)
+                request.httpMethod = "POST"
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.httpBody = try JSONEncoder().encode(dto)
+                request.timeoutInterval = 10
+
+                let (_, response) = try await URLSession.shared.data(for: request)
+                if let http = response as? HTTPURLResponse,
+                   (200...201).contains(http.statusCode) || http.statusCode == 409 {
+                    consentimiento.sincronizado = true
+                }
+            } catch {
+                print("Error consentimiento \(consentimiento.idConsentimiento): \(error.localizedDescription)")
+            }
+        }
+        try? context.save()
+    }
+
     // MARK: - Contar pendientes
 
     func actualizarPendientes(context: ModelContext) {
-        let pacientes    = (try? context.fetch(FetchDescriptor<Paciente>())) ?? []
-        let consultas    = (try? context.fetch(FetchDescriptor<Consulta>())) ?? []
-        let medicamentos = (try? context.fetch(FetchDescriptor<MedicamentoPaciente>())) ?? []
-        let personal     = (try? context.fetch(FetchDescriptor<Personal>())) ?? []
-        let jornadas     = (try? context.fetch(FetchDescriptor<Jornada>())) ?? []
+        let pacientes        = (try? context.fetch(FetchDescriptor<Paciente>())) ?? []
+        let consultas        = (try? context.fetch(FetchDescriptor<Consulta>())) ?? []
+        let medicamentos     = (try? context.fetch(FetchDescriptor<MedicamentoPaciente>())) ?? []
+        let personal         = (try? context.fetch(FetchDescriptor<Personal>())) ?? []
+        let jornadas         = (try? context.fetch(FetchDescriptor<Jornada>())) ?? []
+        let consentimientos  = (try? context.fetch(FetchDescriptor<ConsentimientoPrivacidad>())) ?? []
 
-        let p  = pacientes.filter    { $0.sincronizado != true }.count
-        let c  = consultas.filter    { $0.sincronizado != true }.count
-        let m  = medicamentos.filter { $0.sincronizado != true }.count
-        let pe = personal.filter     { $0.sincronizado != true }.count
-        let j  = jornadas.filter     { $0.sincronizado != true }.count
+        let p  = pacientes.filter       { $0.sincronizado != true }.count
+        let c  = consultas.filter       { $0.sincronizado != true }.count
+        let m  = medicamentos.filter    { $0.sincronizado != true }.count
+        let pe = personal.filter        { $0.sincronizado != true }.count
+        let j  = jornadas.filter        { $0.sincronizado != true }.count
+        let co = consentimientos.filter { $0.sincronizado != true }.count
 
-        pendientesSincronizacion = p + c + m + pe + j
-        desglosePendientes = "Pacientes: \(p) · Consultas: \(c) · Medicamentos: \(m) · Personal: \(pe) · Jornadas: \(j)"
+        pendientesSincronizacion = p + c + m + pe + j + co
+        desglosePendientes = "Pacientes: \(p) · Consultas: \(c) · Medicamentos: \(m) · Personal: \(pe) · Jornadas: \(j) · Consentimientos: \(co)"
         print("Pendientes — \(desglosePendientes)")
     }
 

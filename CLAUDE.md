@@ -4,10 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-<<<<<<< Updated upstream
 iOS/iPadOS app for **Cáritas** — a Catholic charity that runs mobile medical brigades in rural Mexican communities. The app manages patient registration, medical consultations, medications, medical staff, and per-jornada (brigade day) statistics. The UI and variable names are primarily in Spanish.
 
-The Xcode project is at `Reto/Reto.xcodeproj`. All source lives under `Reto/Reto/`.
+The Xcode project is at `Reto/Reto.xcodeproj`. All source lives under `Reto/Reto/`. The backend is `main.py` at the repo root.
 
 ## Build & Run
 
@@ -19,25 +18,10 @@ xcodebuild -project Reto/Reto.xcodeproj -scheme Reto -destination 'platform=iOS 
 
 # Run unit tests
 xcodebuild -project Reto/Reto.xcodeproj -scheme Reto -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' test
-=======
-iOS/iPadOS app for **Cáritas** (a humanitarian organization) to manage patient medical records. Built with SwiftUI + SwiftData, targeting iPad as the primary device.
-
-## Build & Run
-
-Open `Reto/Reto.xcodeproj` in Xcode and run the `Reto` scheme on an iPad simulator or device.
-
-```bash
-# Build from command line
-xcodebuild -project Reto/Reto.xcodeproj -scheme Reto -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M4)' build
-
-# Run tests
-xcodebuild -project Reto/Reto.xcodeproj -scheme Reto -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M4)' test
->>>>>>> Stashed changes
 ```
 
 ## Architecture
 
-<<<<<<< Updated upstream
 **SwiftUI + SwiftData**, no external dependencies. Backend sync via `CaritasSyncVM` (FastAPI + MySQL, requires school VPN).
 
 ### Data models (`@Model` classes backed by SwiftData)
@@ -45,15 +29,15 @@ xcodebuild -project Reto/Reto.xcodeproj -scheme Reto -destination 'platform=iOS 
 | File | Class | Key relationships |
 |---|---|---|
 | `Paciente.swift` | `Paciente` | owns `[Consulta]` and `[MedicamentoPaciente]` (cascade-delete); owns `[ConsentimientoPrivacidad]` |
-| `Consulta.swift` | `Consulta` | belongs to one `Paciente`; holds `[String]` arrays for medicamentos/procedimientos; `notasMedico: String` stores per-visit doctor notes |
-| `MedicamentoPaciente.swift` | `MedicamentoPaciente` | belongs to one `Paciente`; `estaActivo` is `fechaFin == nil` |
-| `Personal.swift` | `Personal` | `curpPersonal` is the functional PK; `especialidad` is their professional title (e.g. "Médico general"); `areasDeServicio: [String]` lists which brigade services they can cover (can rotate); `matricula: String?` is nil for students/interns |
-| `Jornada.swift` | `Jornada` | owns `locacion: Locacion?`; has `[Personal]` relationship and a `personalNombres: [String]` denormalized copy for display |
-| `Locacion.swift` | `Locacion` | location data for a jornada; always estado = "Nuevo León" (AMM scope) |
-| `ConsentimientoPrivacidad.swift` | `ConsentimientoPrivacidad` | belongs to one `Paciente` |
+| `Consulta.swift` | `Consulta` | belongs to one `Paciente`; `medicamentos: [String]` stores names; `recetasJSON: String` stores `[RecetaLocal]` encoded as JSON (includes dosis+unidad+duracion); `notasMedico: String` per-visit notes |
+| `MedicamentoPaciente.swift` | `MedicamentoPaciente` | belongs to one `Paciente`; `indicacion` holds dose+instructions combined; `duracion: String?`; `estaActivo` is `fechaFin == nil` |
+| `Personal.swift` | `Personal` | `curpPersonal` is the functional PK; `especialidad` is their professional title; `areasDeServicio: [String]` lists which brigade services they cover; `matricula: String?` is nil for students/interns |
+| `Jornada.swift` | `Jornada` | owns `locacion: Locacion?`; has `[Personal]` relationship and `personalNombres: [String]` denormalized copy; `serviciosDisponibles: [String]` controls which services are active that day |
+| `Locacion.swift` | `Locacion` | location data for a jornada; always estado = "Nuevo León" |
+| `ConsentimientoPrivacidad.swift` | `ConsentimientoPrivacidad` | belongs to one `Paciente`; has `sincronizado: Bool?` |
 | `Item.swift` | `Item` | Xcode template leftover — registered in `ModelContainer` but unused |
 
-`RetoApp.swift` creates the single `ModelContainer` with the full schema and injects it via `.modelContainer()`.
+`RetoApp.swift` creates the single `ModelContainer` with the full schema.
 
 Domain enums: `Sexo` (masculino / femenino / noDefinido) and `TipoConsulta` (consultaGeneral / entregaMedicamentos / optometrista / dental).
 
@@ -61,28 +45,80 @@ Domain enums: `Sexo` (masculino / femenino / noDefinido) and `TipoConsulta` (con
 
 | File | Purpose |
 |---|---|
-| `ContentView.swift` | Root `NavigationSplitView`; sidebar with links to all main screens; auto-opens `ConfigurarJornadaView` when no active jornada exists |
-| `DashboardView.swift` | Today's jornada banner, services availability grid, patient count, and last 5 patients list — wired to live SwiftData queries |
-| `NuevoPacienteView.swift` | Multi-step wizard (4–5 steps) for new patient registration; paso 3 includes `notasMedico` field; presión arterial split into sistólica/diastólica; `numIntegrantes` is a stepper; doctor picker filters by active jornada's personal AND selected service area |
-| `HistorialJornadaView.swift` | Scrollable list of all registered patients; tapping a row opens `ExpedientePacienteView` |
-| `VistaPacienteRegistrado.swift` | Two-panel patient record: left panel shows personal data + notas importantes + condiciones crónicas; right panel has tabs: Historial, Datos clínicos (real SwiftData — IMC calculated from talla in cm), Medicamentos, Línea de tiempo (real SwiftData) |
-| `NuevaConsultaView.swift` | Form for follow-up consultations; `puedeGuardar` is type-aware (each TipoConsulta has its own required fields); doctor picker filters by jornada + service area; lugar auto-fills from active jornada |
-| `PersonalView.swift` | Split view: list on left (340px), `PerfilPersonalView` on right when a doctor is selected; `FormularioPersonalView` sheet with professional title picker + multi-select `areasDeServicio` chips |
-| `ConfigurarJornadaView.swift` | Full-screen form to start a new jornada: AMM municipality picker, services toggle grid, and checkmark list of active `Personal` |
-| `StatisticsDashboardView.swift` | Real SwiftData queries — no mock data; shows today's patients, jornadas, communities, sex/age distribution, hourly registration chart, top diagnoses, patients by service type |
-| `CaritasSyncVM.swift` | `@MainActor ObservableObject`; syncs pacientes, consultas, medicamentos to FastAPI backend at `http://10.14.255.97:8001`; requires school VPN/network; marks records with `sincronizado: Bool?` |
+| `ContentView.swift` | Root `NavigationSplitView`; sidebar links to all main screens; auto-opens `ConfigurarJornadaView` when no active jornada |
+| `DashboardView.swift` | Today's jornada banner, services grid, patient count, last 5 patients |
+| `NuevoPacienteView.swift` | Multi-step wizard for new patient registration (see Wizard steps below) |
+| `HistorialJornadaView.swift` | Scrollable list of all registered patients; tapping opens `ExpedientePacienteView` |
+| `VistaPacienteRegistrado.swift` | Two-panel patient record: left panel shows personal data + notas + condiciones crónicas; right panel tabs: Historial (shows recetas with dose), Datos clínicos, Medicamentos (shows dose+duration), Línea de tiempo |
+| `NuevaConsultaView.swift` | Follow-up consultation form; all four consultation types include a "Medicamentos recetados" section with nombre+cantidad+unidad picker+duracion |
+| `PersonalView.swift` | Split view: list (340px) + `PerfilPersonalView`; `FormularioPersonalView` sheet with CURP auto-generation |
+| `ConfigurarJornadaView.swift` | Full-screen form to start a new jornada: AMM municipality picker, services toggle grid, Personal checklist |
+| `StatisticsDashboardView.swift` | Real SwiftData queries — no mock data |
+| `CaritasSyncVM.swift` | `@MainActor ObservableObject`; syncs all entities to FastAPI backend |
 
-### Backend (`main.py` — not in repo, runs on school VM)
+### Wizard steps (`NuevoPacienteView.pasosDinamicos`)
 
-FastAPI + MySQL. Endpoints: `GET/POST /pacientes`, `GET /pacientes/{id}/registros-clinicos`, `POST /registros-clinicos`, `GET /pacientes/{id}/medicamentos`, `POST /medicamentos-paciente`, `GET/POST /registros-clinicos/{id}/recetas`.
+| Key | Title | Condition |
+|---|---|---|
+| `identificacion` | Identificación del paciente | Always |
+| `datos_personales` | Datos personales y residencia | Always |
+| `consulta` | Motivo de consulta | Always — services filtered by `jornadaActiva.serviciosDisponibles` |
+| `signos_vitales` | Signos vitales | Only when `servicioSeleccionado == "Consulta general"` |
+| `recetas` | Receta médica | All services except "Entrega de medicamentos" |
+| `privacidad` | Aviso de privacidad | Always |
 
-**Missing endpoints (pending):** `/personal`, `/jornadas` — these tables exist in DB but have no API endpoints yet.
+### Recetas data flow
 
-**Pending sync work:** recetas never synced (need `id_registro` returned from POST); personal and jornadas not synced; `numero_personal` in DB is `INT NOT NULL UNIQUE` but no one assigns it.
+1. In the wizard (`NuevoPacienteView`) and in `NuevaConsultaView`, each medication row captures **nombre**, **cantidad** (numeric), **unidad** (picker: mg/g/ml/tab./cáp./gotas/sobre/amp.), **duración**, and **indicación**.
+2. Dosis is stored as combined string `"500 mg"` in `RecetaLocal.dosis`.
+3. `Consulta.recetasJSON` stores `[RecetaLocal]` as JSON for sync.
+4. `MedicamentoPaciente` is also created with `indicacion = "500 mg · indicación"` so it appears in the Medicamentos tab.
+5. On sync, `POST /registros-clinicos` returns `id_registro`; the app then POSTs each receta to `POST /registros-clinicos/{id_registro}/recetas`.
+
+The `RecetaLocal`, `RecetaWizard`, and `unidadesDosis` are defined at file level in `NuevoPacienteView.swift` (and `MedicamentoTemporal` in `NuevaConsultaView.swift`). `RecetaLocal.encode/decode` static helpers live in `CaritasSyncVM.swift`.
+
+### Sync (`CaritasSyncVM.swift`)
+
+Sync order in `sincronizar()`:
+1. `subirPersonalLocal` — only unsynced records
+2. `subirJornadasLocales`
+3. `subirPacientesLocales`
+4. `descargarPacientesDelServidor` → returns `caritasId → serverUUID` map
+5. `subirConsultasLocales` → reads `id_registro` from response → calls `subirRecetas`
+6. `subirMedicamentosLocales`
+7. `subirConsentimientosLocales`
+
+All entities have `sincronizado: Bool?`; only `sincronizado != true` records are sent.
+
+### Backend (`main.py` — FastAPI + MySQL, school VM)
+
+**Base URL:** `http://10.14.255.97:8001` (requires school VPN/network)
+
+| Method | Endpoint | Notes |
+|---|---|---|
+| GET/POST | `/pacientes` | |
+| GET | `/pacientes/{id}` | |
+| GET | `/pacientes/{id}/registros-clinicos` | |
+| POST | `/registros-clinicos` | Returns `{"id_registro": "...", "mensaje": "..."}` — UUID generated in Python |
+| GET | `/pacientes/{id}/medicamentos` | |
+| POST | `/medicamentos-paciente` | |
+| GET/POST | `/registros-clinicos/{id}/recetas` | |
+| GET/POST | `/personal` | POST upserts by `id_personal` or `curp_personal` |
+| GET/POST | `/jornadas` | |
+| POST | `/consentimientos` | New — syncs `consentimiento_privacidad` table |
+
+### Data normalization (`StringNormalizacion.swift`)
+
+All data is normalized at save time via `String` extensions:
+
+| Helper | Rule | Example |
+|---|---|---|
+| `.limpio` | Trim + collapse internal spaces | `"  Juan  "` → `"Juan"` |
+| `.nombrePropio` | Title Case, respects Spanish prepositions (de/del/la/las/los) | `"JUAN DE LA ROSA"` → `"Juan de la Rosa"` |
+| `.codigoNormalizado` | Uppercase + trim (for CURP, matrícula) | `"vagr930209hnllmf23"` → `"VAGR930209HNLLMF23"` |
+| `.textoLibre` | First letter uppercase only (for notes, motivo, diagnóstico) | `"DOLOR de cabeza"` → `"Dolor de cabeza"` |
 
 ### Design system (`Colores.swift`)
-
-Custom `Color` extensions — never use raw hex values in views:
 
 | Token | Hex | Use |
 |---|---|---|
@@ -92,78 +128,35 @@ Custom `Color` extensions — never use raw hex values in views:
 | `Color.caritasGris` | `#888B8D` | Secondary text, inactive states |
 | `Color.caritasSuave` | `#D1E0D7` | Light green — selected card backgrounds, header strips |
 
+Never use raw hex values in views — always use these tokens.
+
 ### Navigation pattern
 
-`ContentView` uses a custom `SidebarToggleKey` environment key so any detail view can call `toggleSidebar()` to show/hide the sidebar without needing a direct reference to the split view.
+`ContentView` uses `SidebarToggleKey` environment key so any detail view can call `toggleSidebar()`.
 
 ### Location scope
 
-Both `NuevoPacienteView` and `ConfigurarJornadaView` use a hardcoded `municipiosAMM: [String]` list of the 16 Área Metropolitana de Monterrey municipalities. The estado is always hardcoded to `"Nuevo León"`.
+Hardcoded to the 16 AMM municipalities of Nuevo León. `serviciosDisponibles` in the service picker is filtered to only show services enabled for the active jornada.
 
 ### Doctor picker filtering logic
 
-In both `NuevoPacienteView` and `NuevaConsultaView`:
-1. Get `jornadaActiva` (today's jornada with `horaFin == nil`)
-2. Use `jornadaActiva.personal` as the base pool; fall back to all active `Personal` if no jornada
-3. Filter that pool by `areasDeServicio.contains(selectedService)` — doctors with empty `areasDeServicio` appear in all services
-
-### CURP auto-generation
-
-`PersonalView.FormularioPersonalView` computes a CURP from nombre, apellidos, fecha de nacimiento, sexo, and estado de nacimiento using the RENAPO algorithm. The first 16 characters are accurate; the homoclave (last 2) defaults to `"00"`. The field remains editable.
+Both `NuevoPacienteView` and `NuevaConsultaView` filter doctors by:
+1. Only personal assigned to `jornadaActiva` (falls back to all active personal if no jornada)
+2. `areasDeServicio.contains(servicioSeleccionado)` — doctors with empty `areasDeServicio` appear in all services
 
 ### Blood pressure storage
 
-Presión arterial is captured as two separate fields (sistólica / diastólica) in the UI and stored/sent as a single string `"120/80"` in the `presionArterial` field of `Consulta`.
+Captured as two fields (sistólica / diastólica), stored as `"120/80"` in `Consulta.presionArterial`.
+
+### CURP auto-generation
+
+`PersonalView.FormularioPersonalView` computes CURP using the RENAPO algorithm. First 16 chars are accurate; homoclave defaults to `"00"`. Field is editable.
 
 ## Known pending work
 
-- Bug: `NuevaConsultaView` dental type shows a duplicate "Dr. que atendió" field on top of the shared medico picker
-- Feature: duplicate patient search in `NuevoPacienteView` paso 1 is hardcoded (triggers on "tor..." prefix) — should query SwiftData
-- Feature: CURP scan → auto-fill fecha de nacimiento and sexo in paso 1
+- Bug: `NuevaConsultaView` dental type still shows a duplicate "Dr. que atendió" field
+- Feature: duplicate patient search in paso 1 is hardcoded (triggers on "tor..." prefix)
+- Feature: CURP scan → auto-fill fecha de nacimiento and sexo
 - Feature: frecuencia cardiaca auto-fill from pulso
-- Feature: condiciones crónicas — model has `[String]` but no UI to add them in the wizard
-- Sync: personal, jornadas, recetas not yet synced to backend
-- Sync: `POST /registros-clinicos` must return `id_registro` before recetas can be synced
-=======
-The app uses **SwiftData** for local persistence. The data model has three `@Model` classes with cascade-delete relationships:
-
-- `Paciente` — the root entity. Owns `[Consulta]` and `[MedicamentoPaciente]` via `@Relationship(deleteRule: .cascade)`.
-- `Consulta` — a single medical visit attached to a `Paciente`.
-- `MedicamentoPaciente` — a prescribed medication attached to a `Paciente`.
-
-`RetoApp.swift` bootstraps the `ModelContainer` with `Item.self` (the Xcode template placeholder — **not yet replaced with `Paciente.self`**). This means `Paciente`, `Consulta`, and `MedicamentoPaciente` are not currently registered in the container and will not persist between launches. This is a known gap to fix.
-
-There is also a top-level `@Relationship` declaration in `Paciente.swift` outside any class — a stray line that should be removed.
-
-## Views
-
-| File | Role |
-|---|---|
-| `ContentView.swift` | Template placeholder — not wired to real data yet |
-| `NuevoPacienteView.swift` | Multi-step wizard (6–8 steps depending on service type) for registering a new patient; includes PDF privacy notice viewer and signature capture canvas |
-| `VistaPacienteRegistrado.swift` | Split-pane patient record screen with sidebar (`VistaPacienteRegistrado`) + tabbed main area (`ExpedientePacienteView`) showing Historial / Datos clínicos / Medicamentos / Línea de tiempo |
-| `NuevaConsultaView.swift` | Sheet form for logging a new `Consulta` and optionally adding a `MedicamentoPaciente` |
-
-## Colors
-
-All brand colors are defined as `Color` extensions in `Colores.swift`:
-
-| Name | Hex |
-|---|---|
-| `caritasPrimario` | `#009CA6` (teal) |
-| `caritasAcento` | `#FF7F32` (orange) |
-| `caritasAzul` | `#003B5C` (dark blue) |
-| `caritasGris` | `#888B8D` |
-| `caritasSuave` | `#D1E0D7` (mint, used for selected-state backgrounds) |
-
-Use these semantic color names throughout the UI — never raw hex values in view files.
-
-## Key Conventions
-
-- All UI strings are in Spanish (the app's target users are Spanish-speaking).
-- `NuevoPacienteView` drives its step count via `pasosDinamicos`, which adds "signos_vitales" and "socioeconomico" steps only when service is "Consulta general". New steps must be added to both `pasosDinamicos` and `tituloPaso`.
-- `Paciente.nombreCompleto` is a computed property that joins the four name fields, filtering nils.
-- `Paciente.edad` is computed from `fechaNacimiento` at read time — it is not stored.
-- `MedicamentoPaciente.estaActivo` returns `true` when `fechaFin == nil`.
-- The privacy PDF (`AVISO DE PRIVACIDAD 2025.pdf`) is bundled in the app target and accessed via `Bundle.main.url(forResource:withExtension:)`.
->>>>>>> Stashed changes
+- Feature: condiciones crónicas — model has `[String]` but no UI to add them in wizard
+- Sync: `numero_personal` in DB is `INT NOT NULL UNIQUE` — assigned via `MAX+1` in backend
