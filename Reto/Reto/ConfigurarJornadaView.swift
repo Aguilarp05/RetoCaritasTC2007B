@@ -4,6 +4,7 @@ import SwiftData
 struct ConfigurarJornadaView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var syncVM: CaritasSyncVM
     @Query(sort: \Personal.nombrePersonal) private var todoElPersonal: [Personal]
 
     // Ubicación
@@ -15,6 +16,10 @@ struct ConfigurarJornadaView: View {
 
     // Personal
     @State private var personalSeleccionado: Set<UUID> = []
+
+    // Descarga
+    @State private var descargando = false
+    @State private var mensajeDescarga = ""
 
     private let todosServicios: [(nombre: String, icono: String)] = [
         ("Consulta general",        "stethoscope"),
@@ -36,6 +41,7 @@ struct ConfigurarJornadaView: View {
     }
 
     var body: some View {
+        ZStack {
         VStack(spacing: 0) {
 
             // Encabezado
@@ -50,7 +56,7 @@ struct ConfigurarJornadaView: View {
                         .foregroundStyle(Color.caritasGris)
                 }
                 Spacer()
-                Button { iniciarJornada() } label: {
+                Button { Task { await iniciarJornada() } } label: {
                     Text("Iniciar jornada")
                         .font(.subheadline)
                         .fontWeight(.semibold)
@@ -175,6 +181,27 @@ struct ConfigurarJornadaView: View {
         }
         .background(Color(.systemBackground))
         .colorScheme(.light)
+
+        // Overlay de descarga
+        if descargando {
+            Color.black.opacity(0.45).ignoresSafeArea()
+            VStack(spacing: 16) {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .tint(.white)
+                    .scaleEffect(1.3)
+                Text(mensajeDescarga)
+                    .font(.subheadline).fontWeight(.medium)
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(32)
+            .background(Color.caritasAzul.opacity(0.95))
+            .clipShape(RoundedRectangle(cornerRadius: 20))
+            .shadow(radius: 20)
+        }
+        } // ZStack
+        .colorScheme(.light)
     }
 
     // MARK: - Helpers
@@ -222,7 +249,7 @@ struct ConfigurarJornadaView: View {
         }
     }
 
-    private func iniciarJornada() {
+    private func iniciarJornada() async {
         let seleccionados = todoElPersonal.filter { personalSeleccionado.contains($0.idPersonal) }
 
         let locacion = Locacion(
@@ -241,6 +268,14 @@ struct ConfigurarJornadaView: View {
         jornada.personal = seleccionados
         modelContext.insert(jornada)
         try? modelContext.save()
+
+        // Pre-carga de pacientes si hay conexión
+        if !syncVM.isOffline {
+            descargando = true
+            mensajeDescarga = "Descargando pacientes de \(municipioSel)…"
+            await syncVM.descargarPacientesPorMunicipio(municipioSel, context: modelContext)
+            descargando = false
+        }
 
         dismiss()
     }

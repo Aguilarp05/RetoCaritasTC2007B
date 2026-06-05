@@ -591,8 +591,9 @@ struct NuevaConsultaView: View {
     // MARK: - Lógica
 
     private func agregarMedicamento() {
+        let nombreN = medicamentoNombre.nombrePropio
         medicamentosIndicados.append(MedicamentoTemporal(
-            nombre: medicamentoNombre,
+            nombre: nombreN,
             dosisAmount: medicamentoDosisAmount,
             dosisUnidad: medicamentoDosisUnidad,
             duracion: medicamentoDuracion,
@@ -608,15 +609,22 @@ struct NuevaConsultaView: View {
     }
 
     private func guardarConsulta() {
+        let lugarN       = lugar.textoLibre
+        let motivoN      = motivo.textoLibre
+        let diagnosticoN = diagnostico.textoLibre
+        let notasN       = notasMedico.textoLibre
+        let medNombres   = medicamentosIndicados.map { $0.nombre.nombrePropio }
+        let procs        = separarPorComas(procedimientosTexto).map { $0.textoLibre }
+
         let nuevaConsulta = Consulta(
             tipoConsulta:          tipoConsulta,
             fecha:                 fecha,
-            lugar:                 lugar.textoLibre,
-            motivo:                motivo.textoLibre,
-            diagnostico:           diagnostico.textoLibre,
-            notasMedico:           notasMedico.textoLibre,
-            medicamentos:          medicamentosIndicados.map { $0.nombre.nombrePropio },
-            procedimientos:        separarPorComas(procedimientosTexto).map { $0.textoLibre },
+            lugar:                 lugarN,
+            motivo:                motivoN,
+            diagnostico:           diagnosticoN,
+            notasMedico:           notasN,
+            medicamentos:          medNombres,
+            procedimientos:        procs,
             medico:                medico,
             peso:                  Double(peso),
             talla:                 Double(talla),

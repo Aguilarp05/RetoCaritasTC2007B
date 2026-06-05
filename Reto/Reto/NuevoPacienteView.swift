@@ -42,6 +42,8 @@ struct NuevoPacienteView: View {
         return pasoActual < totalPasos - 1 ? "Continuar →" : "Registrar paciente"
     }
     @State private var pacienteRegistrado = false
+    @State private var mostrarToast = false
+    @State private var mostrarAlertaDescartar = false
     @State private var pacienteParaConsulta: Paciente? = nil
     @State private var mostrarNuevaConsultaRegresa = false
     @State private var fechaBusqueda = Date()
@@ -58,7 +60,7 @@ struct NuevoPacienteView: View {
     @State private var primerApellido  = ""
     @State private var segundoApellido = ""
     @State private var fechaNacimiento = Date()
-    @State private var sexo            = Sexo.noDefinido
+    @State private var sexo: Sexo?     = nil
     @State private var telefono        = ""
     @State private var estadoSeleccionado     = "Nuevo León"
     @State private var municipioSeleccionado  = ""
@@ -99,7 +101,7 @@ struct NuevoPacienteView: View {
             segundoNombre: segundoNombre.isEmpty ? nil : segundoNombre,
             fechaNacimiento: fechaNacimiento,
             municipio: municipioSeleccionado,
-            sexo: sexo
+            sexo: sexo ?? .noDefinido
         )
     }
 
@@ -113,7 +115,7 @@ struct NuevoPacienteView: View {
             let telefonoOk = telefono.isEmpty || telefono.count == 10
             return !primerNombre.trimmingCharacters(in: .whitespaces).isEmpty &&
                    !primerApellido.trimmingCharacters(in: .whitespaces).isEmpty &&
-                   sexo != .noDefinido &&
+                   sexo != nil &&
                    !municipioSeleccionado.isEmpty &&
                    telefonoOk
         case "consulta":
@@ -133,17 +135,60 @@ struct NuevoPacienteView: View {
 
     // MARK: - Body
     var body: some View {
-        VStack(spacing: 0) {
-            barraProgreso
-            Divider()
-            contenidoPaso
-            Divider()
-            navegacion
+        ZStack(alignment: .bottom) {
+            VStack(spacing: 0) {
+                barraProgreso
+                Divider()
+                contenidoPaso
+                Divider()
+                navegacion
+            }
+            .background(Color(.systemBackground))
+
+            if mostrarToast {
+                toastRegistrado
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .padding(.bottom, 24)
+                    .zIndex(1)
+            }
         }
-        .background(Color(.systemBackground))
         .colorScheme(.light)
         .toolbar(.hidden, for: .navigationBar)
         .onChange(of: pasoActual) { foco = nil }
+        .alert("¿Descartar el registro?", isPresented: $mostrarAlertaDescartar) {
+            Button("Descartar", role: .destructive) { reiniciarFormulario() }
+            Button("Continuar", role: .cancel) { }
+        } message: {
+            Text("Se perderán todos los datos ingresados.")
+        }
+    }
+
+    var toastRegistrado: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(Color.caritasPrimario)
+                    .frame(width: 36, height: 36)
+                Image(systemName: "checkmark")
+                    .font(.subheadline).fontWeight(.bold)
+                    .foregroundStyle(.white)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Paciente registrado")
+                    .font(.subheadline).fontWeight(.semibold)
+                    .foregroundStyle(.white)
+                Text(nombreGuardado)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.85))
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+        .background(Color.caritasAzul)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 4)
+        .padding(.horizontal, 24)
     }
 
     // MARK: - Barra de progreso
@@ -160,7 +205,18 @@ struct NuevoPacienteView: View {
                     .font(.headline)
                     .foregroundStyle(Color.caritasAzul)
                 Spacer()
-                Image(systemName: "line.3.horizontal").opacity(0)
+                Button {
+                    if tipoPaciente.isEmpty {
+                        reiniciarFormulario()
+                    } else {
+                        mostrarAlertaDescartar = true
+                    }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.subheadline).fontWeight(.medium)
+                        .foregroundStyle(Color.caritasGris)
+                        .frame(width: 28, height: 28)
+                }
             }
 
             HStack(spacing: 6) {
@@ -260,11 +316,6 @@ struct NuevoPacienteView: View {
                 }
                 .padding(.horizontal, 24).padding(.vertical, 16)
             }
-        }
-        .alert("Paciente registrado", isPresented: $pacienteRegistrado) {
-            Button("Nuevo paciente") { reiniciarFormulario() }
-        } message: {
-            Text("\(nombreGuardado) ha sido registrado exitosamente.")
         }
     }
 
@@ -663,7 +714,7 @@ struct NuevoPacienteView: View {
     }
 
     func botonSexo(etiqueta: String, valor: Sexo) -> some View {
-        let sel = sexo == valor
+        let sel = sexo == .some(valor)
         return Button { sexo = valor } label: {
             Text(etiqueta)
                 .font(.subheadline)
@@ -1109,6 +1160,50 @@ struct NuevoPacienteView: View {
                         }
                     )
             }
+
+            // Tarjeta resumen
+            let sexoTexto: String = sexo.map { s in
+                switch s {
+                case .femenino:   return "Femenino"
+                case .masculino:  return "Masculino"
+                case .noDefinido: return "Prefiero no decir"
+                }
+            } ?? "—"
+            let filas: [(String, String)] = [
+                ("Nombre",    "\(primerNombre.nombrePropio) \(primerApellido.nombrePropio)"),
+                ("Municipio", municipioSeleccionado),
+                ("Servicio",  servicioSeleccionado),
+                ("Médico",    medicoSeleccionado),
+                ("Sexo",      sexoTexto),
+            ].filter { !$0.1.isEmpty && $0.1 != "—" }
+
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Image(systemName: "person.text.rectangle.fill")
+                        .foregroundStyle(Color.caritasPrimario)
+                    Text("Resumen del registro")
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundStyle(Color.caritasAzul)
+                }
+                .padding(.bottom, 12)
+
+                ForEach(Array(filas.enumerated()), id: \.offset) { idx, fila in
+                    if idx > 0 { Divider() }
+                    HStack {
+                        Text(fila.0)
+                            .font(.caption)
+                            .foregroundStyle(Color.caritasGris)
+                            .frame(width: 80, alignment: .leading)
+                        Text(fila.1)
+                            .font(.caption).fontWeight(.medium)
+                            .foregroundStyle(Color.caritasAzul)
+                    }
+                    .padding(.vertical, 6)
+                }
+            }
+            .padding(16)
+            .background(Color.caritasSuave)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
 
@@ -1156,7 +1251,7 @@ struct NuevoPacienteView: View {
             fechaNacimiento:       fechaNacimiento,
             lugarNacimiento:       municipioN.isEmpty ? comunidadN : municipioN,
             caritasId:             caritasIdGenerado,
-            sexoPaciente:          sexo,
+            sexoPaciente:          sexo ?? .noDefinido,
             telefono:              telefono.limpio.isEmpty ? nil : telefono.limpio,
             estado:                estadoSeleccionado.isEmpty ? nil : estadoSeleccionado,
             municipio:             municipioN.isEmpty ? nil : municipioN,
@@ -1203,8 +1298,16 @@ struct NuevoPacienteView: View {
         )
         nuevoPaciente.consentimientos.append(consentimiento)
 
-        nombreGuardado = "\(primerNombre) \(primerApellido)"
-        pacienteRegistrado = true
+        nombreGuardado = "\(nombreN) \(apellido1N)"
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            mostrarToast = true
+        }
+        Task {
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            withAnimation(.easeOut(duration: 0.3)) { mostrarToast = false }
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            reiniciarFormulario()
+        }
     }
 
     private func reiniciarFormulario() {
@@ -1212,7 +1315,7 @@ struct NuevoPacienteView: View {
         pacienteParaConsulta = nil; mostrarNuevaConsultaRegresa = false
         fechaBusqueda = Date(); usarFechaBusqueda = false
         primerNombre = ""; segundoNombre = ""; primerApellido = ""; segundoApellido = ""
-        fechaNacimiento = Date(); sexo = .noDefinido; telefono = ""
+        fechaNacimiento = Date(); sexo = nil; telefono = ""
         estadoSeleccionado = "Nuevo León"; municipioSeleccionado = ""; comunidad = ""
         servicioSeleccionado = "Consulta general"; medicoSeleccionado = ""
         motivoConsulta = ""; notasMedico = ""; tieneIMSS = ""

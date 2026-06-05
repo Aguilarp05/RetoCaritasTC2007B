@@ -53,6 +53,7 @@ struct ContentView: View {
         })
         .fullScreenCover(isPresented: $mostrarConfigJornada) {
             ConfigurarJornadaView()
+                .environmentObject(syncVM)
         }
         .onChange(of: jornadas, initial: true) { _, _ in
             if jornadaActiva == nil && !mostrarConfigJornada {

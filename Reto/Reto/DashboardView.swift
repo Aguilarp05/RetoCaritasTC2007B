@@ -6,10 +6,26 @@ struct DashboardView: View {
     var onNuevaConsulta: (() -> Void)? = nil
     @Environment(\.toggleSidebar) private var toggleSidebar
     @Query(sort: \Jornada.fecha, order: .reverse) private var jornadas: [Jornada]
-    @Query(sort: \Paciente.fechaRegistro, order: .reverse) private var pacientes: [Paciente]
+    @Query(sort: \Paciente.fechaRegistro, order: .reverse) private var todosLosPacientes: [Paciente]
 
     private var jornadaActiva: Jornada? {
         jornadas.first { Calendar.current.isDateInToday($0.fecha) && $0.horaFin == nil }
+    }
+
+    // Pacientes del municipio activo — para el listado y búsqueda
+    private var pacientes: [Paciente] {
+        guard let municipio = jornadaActiva?.locacion?.municipio, !municipio.isEmpty else {
+            return todosLosPacientes
+        }
+        return todosLosPacientes.filter { $0.municipio == municipio }
+    }
+
+    // Pacientes atendidos en la jornada activa — para conteos del día
+    private var pacientesDeJornada: [Paciente] {
+        guard let jornada = jornadaActiva else { return [] }
+        return todosLosPacientes.filter { paciente in
+            paciente.consultas.contains { $0.jornada?.idJornada == jornada.idJornada }
+        }
     }
 
     private var serviciosDelDia: [ServicioDashboard] {
@@ -34,21 +50,16 @@ struct DashboardView: View {
         ]
     }
 
-    private var totalPacientes: Int {
-        let hoy = Calendar.current.startOfDay(for: Date())
-        return pacientes.filter { $0.fechaRegistro >= hoy }.count
-    }
+    private var totalPacientes: Int { pacientesDeJornada.count }
 
     private func contarAtendidos(_ tipo: TipoConsulta) -> Int {
-        let hoy = Calendar.current.startOfDay(for: Date())
-        return pacientes.filter { paciente in
-            paciente.fechaRegistro >= hoy &&
+        pacientesDeJornada.filter { paciente in
             paciente.consultas.contains { $0.tipoConsulta == tipo }
         }.count
     }
 
     private var ultimosPacientes: [Paciente] {
-        Array(pacientes.prefix(5))
+        Array(pacientesDeJornada.prefix(5))
     }
 
     var body: some View {
@@ -213,7 +224,10 @@ struct DashboardView: View {
 
                     ForEach(ultimosPacientes) { paciente in
                         VStack(spacing: 0) {
-                            filaUltimoPaciente(paciente)
+                            NavigationLink(destination: VistaPacienteRegistrado(paciente: paciente)) {
+                                filaUltimoPaciente(paciente)
+                            }
+                            .buttonStyle(.plain)
                             Divider()
                                 .padding(.leading, 78)
                         }

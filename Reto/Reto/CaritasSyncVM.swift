@@ -444,6 +444,36 @@ class CaritasSyncVM: ObservableObject {
         return caritasIdMap
     }
 
+    // MARK: - Pacientes: descarga por municipio (pre-carga al iniciar jornada)
+
+    func descargarPacientesPorMunicipio(_ municipio: String, context: ModelContext) async {
+        guard !isOffline else { return }
+        guard let encoded = municipio.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "\(baseURL)/pacientes?municipio=\(encoded)") else { return }
+
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let dtos = try JSONDecoder().decode([PacienteOutDTO].self, from: data)
+
+            let existentes = try context.fetch(FetchDescriptor<Paciente>())
+            let caritasIdsLocales = Set(existentes.map { $0.caritasId })
+            var nuevos = 0
+
+            for dto in dtos {
+                if !caritasIdsLocales.contains(dto.caritasId) {
+                    let paciente = outDTOaPaciente(dto)
+                    paciente.sincronizado = true
+                    context.insert(paciente)
+                    nuevos += 1
+                }
+            }
+            if nuevos > 0 { try context.save() }
+            print("Pre-carga \(municipio): \(dtos.count) pacientes del servidor, \(nuevos) nuevos locales")
+        } catch {
+            print("Error pre-carga \(municipio): \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Consultas: subida
 
     func subirConsultasLocales(context: ModelContext, caritasIdMap: [String: String]) async {

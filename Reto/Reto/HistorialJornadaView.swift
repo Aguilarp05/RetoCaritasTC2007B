@@ -3,8 +3,20 @@ import SwiftData
 
 struct HistorialJornadaView: View {
     @Environment(\.toggleSidebar) private var toggleSidebar
-    @Query(sort: \Paciente.fechaRegistro, order: .reverse) private var pacientes: [Paciente]
+    @Query(sort: \Paciente.fechaRegistro, order: .reverse) private var todosLosPacientes: [Paciente]
+    @Query(sort: \Jornada.fecha, order: .reverse) private var jornadas: [Jornada]
     @State private var pacienteSeleccionado: Paciente?
+
+    private var jornadaActiva: Jornada? {
+        jornadas.first { Calendar.current.isDateInToday($0.fecha) && $0.horaFin == nil }
+    }
+
+    private var pacientes: [Paciente] {
+        guard let municipio = jornadaActiva?.locacion?.municipio, !municipio.isEmpty else {
+            return todosLosPacientes
+        }
+        return todosLosPacientes.filter { $0.municipio == municipio }
+    }
 
     var body: some View {
         Group {
@@ -39,7 +51,8 @@ struct HistorialJornadaView: View {
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundStyle(Color.caritasAzul)
-                    Text("Pacientes atendidos en la jornada")
+                    let municipio = jornadaActiva?.locacion?.municipio ?? ""
+                    Text(municipio.isEmpty ? "Todos los pacientes" : "Pacientes de \(municipio)")
                         .font(.subheadline)
                         .foregroundStyle(Color.caritasGris)
                 }

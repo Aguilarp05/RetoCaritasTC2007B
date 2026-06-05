@@ -2,10 +2,9 @@ import SwiftUI
 import SwiftData
 
 enum SeccionExpediente: String, CaseIterable, Identifiable {
-    case historial     = "Historial"
     case datosClinicos = "Datos clínicos"
     case medicamentos  = "Medicamentos"
-    case lineaTiempo   = "Línea de tiempo"
+    case lineaTiempo   = "Consultas"
 
     var id: String { rawValue }
 }
@@ -72,15 +71,6 @@ struct VistaPacienteRegistrado: View {
                         .fontWeight(.bold)
                         .foregroundStyle(Color.caritasAzul)
 
-                    HStack(spacing: 8) {
-                        Text("Paciente activa")
-                            .font(.caption)
-                            .foregroundStyle(Color.caritasPrimario)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.caritasSuave)
-                            .clipShape(Capsule())
-                    }
                 }
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -183,7 +173,7 @@ struct ExpedientePacienteView: View {
     @Bindable var paciente: Paciente
     var onBack: (() -> Void)? = nil
     @State private var mostrarNuevaConsulta = false
-    @State private var seccionSeleccionada: SeccionExpediente = .historial
+    @State private var seccionSeleccionada: SeccionExpediente = .datosClinicos
     @State private var pdfURL: URL?
     @State private var mostrarCompartirExpediente = false
 
@@ -237,15 +227,31 @@ struct ExpedientePacienteView: View {
                 .frame(maxWidth: .infinity)
                 .background(Color.caritasSuave)
 
-                Picker("Sección", selection: $seccionSeleccionada) {
+                HStack(spacing: 0) {
                     ForEach(SeccionExpediente.allCases) { seccion in
-                        Text(seccion.rawValue).tag(seccion)
+                        let seleccionada = seccionSeleccionada == seccion
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                seccionSeleccionada = seccion
+                            }
+                        } label: {
+                            Text(seccion.rawValue)
+                                .font(.subheadline)
+                                .fontWeight(seleccionada ? .semibold : .regular)
+                                .foregroundStyle(seleccionada ? Color.caritasPrimario : Color.caritasGris)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(seleccionada ? Color.caritasSuave : Color(.systemBackground))
+                                .overlay(alignment: .bottom) {
+                                    Rectangle()
+                                        .fill(seleccionada ? Color.caritasPrimario : Color(.systemGray5))
+                                        .frame(height: seleccionada ? 2 : 0.5)
+                                }
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
-                .pickerStyle(.segmented)
-                .tint(Color.caritasPrimario)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 16)
+                .background(Color(.systemBackground))
 
                 Divider()
 
@@ -270,9 +276,8 @@ struct ExpedientePacienteView: View {
     private var contenidoDeSeccion: some View {
         Group {
             switch seccionSeleccionada {
-            case .historial:     HistorialPacienteView(consultas: paciente.consultas)
             case .datosClinicos: DatosClinicosPacienteView(paciente: paciente)
-            case .medicamentos:  MedicamentosPacienteView(medicamentos: paciente.medicamentos)
+            case .medicamentos:  HistorialMedicamentosPacienteView(consultas: paciente.consultas)
             case .lineaTiempo:   LineaTiempoPacienteView(paciente: paciente)
             }
         }
@@ -552,49 +557,107 @@ private func seccionHeader(_ titulo: String) -> some View {
         .frame(maxWidth: .infinity, alignment: .leading)
 }
 
-// MARK: - Medicamentos
+// MARK: - Medicamentos (historial de recetas por consulta)
 
-struct MedicamentosPacienteView: View {
-    let medicamentos: [MedicamentoPaciente]
+struct HistorialMedicamentosPacienteView: View {
+    let consultas: [Consulta]
 
-    var medicamentosActivos: [MedicamentoPaciente] {
-        medicamentos.filter { $0.estaActivo }.sorted { $0.fechaInicio > $1.fechaInicio }
+    private struct ConsultaConRecetas: Identifiable {
+        let id: UUID
+        let fecha: Date
+        let tipoConsulta: String
+        let medico: String
+        let recetas: [RecetaLocal]
     }
 
-    var medicamentosAnteriores: [MedicamentoPaciente] {
-        medicamentos.filter { !$0.estaActivo }.sorted { $0.fechaInicio > $1.fechaInicio }
+    private var consultasConRecetas: [ConsultaConRecetas] {
+        consultas
+            .sorted { $0.fecha > $1.fecha }
+            .compactMap { consulta in
+                let recetas = RecetaLocal.decode(consulta.recetasJSON)
+                guard !recetas.isEmpty else { return nil }
+                return ConsultaConRecetas(
+                    id: consulta.idConsulta,
+                    fecha: consulta.fecha,
+                    tipoConsulta: consulta.tipoConsulta.rawValue,
+                    medico: consulta.medico,
+                    recetas: recetas
+                )
+            }
     }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                seccionHeader("Activos")
-                medicamentosSection(medicamentosActivos)
-
-                Divider()
-
-                seccionHeader("Anteriores")
-                medicamentosSection(medicamentosAnteriores)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private func medicamentosSection(_ lista: [MedicamentoPaciente]) -> some View {
-        Group {
-            if lista.isEmpty {
-                Text("Sin medicamentos registrados.")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.caritasGris)
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 14)
+            if consultasConRecetas.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "pills")
+                        .font(.system(size: 40))
+                        .foregroundStyle(Color.caritasSuave)
+                    Text("Sin medicamentos recetados")
+                        .font(.subheadline).fontWeight(.medium)
+                        .foregroundStyle(Color.caritasAzul)
+                    Text("Los medicamentos recetados en cada consulta aparecerán aquí.")
+                        .font(.caption).foregroundStyle(Color.caritasGris)
+                        .multilineTextAlignment(.center).frame(maxWidth: 280)
+                }
+                .frame(maxWidth: .infinity).padding(.top, 60)
             } else {
-                VStack(spacing: 0) {
-                    ForEach(lista) { med in
-                        MedicamentoFilaView(medicamento: med)
-                        Divider().padding(.leading, 24)
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(consultasConRecetas) { entrada in
+                        VStack(alignment: .leading, spacing: 0) {
+                            // Encabezado de la consulta
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(entrada.fecha.formatted(date: .abbreviated, time: .omitted))
+                                        .font(.caption).foregroundStyle(Color.caritasGris)
+                                    Text(entrada.tipoConsulta)
+                                        .font(.caption).fontWeight(.semibold)
+                                        .foregroundStyle(Color.caritasPrimario)
+                                    if !entrada.medico.isEmpty {
+                                        Text(entrada.medico)
+                                            .font(.caption).foregroundStyle(Color.caritasGris)
+                                    }
+                                }
+                                Spacer()
+                                Text("\(entrada.recetas.count) med.")
+                                    .font(.caption).foregroundStyle(Color.caritasGris)
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(Color.caritasSuave.opacity(0.5))
+
+                            // Recetas de esa consulta
+                            ForEach(Array(entrada.recetas.enumerated()), id: \.offset) { _, receta in
+                                HStack(alignment: .top, spacing: 12) {
+                                    Circle()
+                                        .fill(Color.caritasPrimario.opacity(0.25))
+                                        .frame(width: 8, height: 8)
+                                        .padding(.top, 5)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(receta.nombre)
+                                            .font(.subheadline).fontWeight(.medium)
+                                            .foregroundStyle(Color.caritasAzul)
+                                        let detalle = [receta.dosis, receta.duracion]
+                                            .filter { !$0.isEmpty }.joined(separator: " · ")
+                                        if !detalle.isEmpty {
+                                            Text(detalle)
+                                                .font(.caption).foregroundStyle(Color.caritasGris)
+                                        }
+                                        if let notas = receta.notas, !notas.isEmpty {
+                                            Text(notas)
+                                                .font(.caption).foregroundStyle(Color.caritasGris)
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 10)
+                                Divider().padding(.leading, 44)
+                            }
+                        }
+                        Divider()
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -650,47 +713,24 @@ struct MedicamentoFilaView: View {
     }
 }
 
-// MARK: - Línea de tiempo
+// MARK: - Línea de tiempo (expandible)
 
 struct LineaTiempoPacienteView: View {
     let paciente: Paciente
+    @State private var expandidos: Set<UUID> = []
 
-    private var eventos: [EventoLineaTiempo] {
-        var lista: [EventoLineaTiempo] = []
-
-        // Consultas ordenadas de más reciente a más antigua
-        for consulta in paciente.consultas.sorted(by: { $0.fecha > $1.fecha }) {
-            let tipo: TipoEventoLineaTiempo = consulta.tipoConsulta == .consultaGeneral ? .tratamiento : .nota
-            let descripcion = [consulta.diagnostico, consulta.motivo]
-                .first(where: { !$0.isEmpty }) ?? consulta.tipoConsulta.rawValue
-            lista.append(EventoLineaTiempo(
-                fecha: consulta.fecha.formatted(date: .abbreviated, time: .omitted),
-                titulo: consulta.tipoConsulta.rawValue,
-                descripcion: descripcion,
-                tipo: tipo
-            ))
-        }
-
-        // Registro inicial (siempre al final)
-        lista.append(EventoLineaTiempo(
-            fecha: paciente.fechaRegistro.formatted(date: .abbreviated, time: .omitted),
-            titulo: "Registro en el sistema",
-            descripcion: "Paciente ingresa al programa Cáritas.",
-            tipo: .inicio
-        ))
-
-        return lista
+    private var consultas: [Consulta] {
+        paciente.consultas.sorted { $0.fecha > $1.fecha }
     }
 
     var body: some View {
         ScrollView {
-            if eventos.count == 1 {
-                // Solo tiene el registro inicial — sin consultas aún
-                VStack(spacing: 8) {
+            if consultas.isEmpty {
+                VStack(spacing: 12) {
                     Image(systemName: "clock.arrow.circlepath")
-                        .font(.system(size: 36))
+                        .font(.system(size: 40))
                         .foregroundStyle(Color.caritasSuave)
-                    Text("Sin actividad registrada aún")
+                    Text("Sin consultas registradas aún")
                         .font(.subheadline)
                         .foregroundStyle(Color.caritasGris)
                 }
@@ -698,8 +738,39 @@ struct LineaTiempoPacienteView: View {
                 .padding(.top, 60)
             } else {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(eventos) { evento in
-                        EventoLineaTiempoView(evento: evento, esUltimo: evento.id == eventos.last?.id)
+                    ForEach(Array(consultas.enumerated()), id: \.element.idConsulta) { idx, consulta in
+                        EntradaConsultaView(
+                            consulta: consulta,
+                            esUltima: idx == consultas.count - 1,
+                            expandida: expandidos.contains(consulta.idConsulta)
+                        ) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                if expandidos.contains(consulta.idConsulta) {
+                                    expandidos.remove(consulta.idConsulta)
+                                } else {
+                                    expandidos.insert(consulta.idConsulta)
+                                }
+                            }
+                        }
+                    }
+
+                    // Entrada de registro inicial
+                    HStack(alignment: .top, spacing: 16) {
+                        Circle()
+                            .fill(Color.caritasAzul)
+                            .frame(width: 12, height: 12)
+                            .padding(.top, 3)
+                            .frame(width: 16)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(paciente.fechaRegistro.formatted(date: .abbreviated, time: .omitted))
+                                .font(.caption).foregroundStyle(Color.caritasGris)
+                            Text("Registro en el sistema")
+                                .font(.subheadline).fontWeight(.semibold)
+                                .foregroundStyle(Color.caritasAzul)
+                            Text("Paciente ingresa al programa Cáritas.")
+                                .font(.caption).foregroundStyle(Color.caritasGris)
+                        }
+                        .padding(.bottom, 20)
                     }
                 }
                 .padding(.top, 16)
@@ -710,18 +781,30 @@ struct LineaTiempoPacienteView: View {
     }
 }
 
-struct EventoLineaTiempoView: View {
-    let evento: EventoLineaTiempo
-    var esUltimo: Bool = false
+struct EntradaConsultaView: View {
+    let consulta: Consulta
+    let esUltima: Bool
+    let expandida: Bool
+    let onTap: () -> Void
+
+    private var colorTipo: Color {
+        switch consulta.tipoConsulta {
+        case .consultaGeneral:       return Color.caritasPrimario
+        case .dental:                return Color.caritasAcento
+        case .optometrista:          return .purple
+        case .entregaMedicamentos:   return .green
+        }
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
+            // Línea vertical + círculo
             VStack(spacing: 0) {
                 Circle()
-                    .fill(evento.tipo.color)
+                    .fill(colorTipo)
                     .frame(width: 12, height: 12)
                     .padding(.top, 3)
-                if !esUltimo {
+                if !esUltima || expandida {
                     Rectangle()
                         .fill(Color(.systemGray4))
                         .frame(width: 1.5)
@@ -730,20 +813,83 @@ struct EventoLineaTiempoView: View {
             }
             .frame(width: 16)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(evento.fecha)
-                    .font(.caption)
-                    .foregroundStyle(Color.caritasGris)
-                Text(evento.titulo)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.caritasAzul)
-                Text(evento.descripcion)
-                    .font(.subheadline)
-                    .foregroundStyle(Color.caritasGris)
-                    .fixedSize(horizontal: false, vertical: true)
+            // Contenido
+            VStack(alignment: .leading, spacing: 0) {
+                // Encabezado — siempre visible, tappable
+                Button(action: onTap) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(consulta.fecha.formatted(date: .abbreviated, time: .omitted))
+                                .font(.caption).foregroundStyle(Color.caritasGris)
+                            Text(consulta.tipoConsulta.rawValue)
+                                .font(.subheadline).fontWeight(.semibold)
+                                .foregroundStyle(Color.caritasAzul)
+                            if !consulta.medico.isEmpty {
+                                Text(consulta.medico)
+                                    .font(.caption).foregroundStyle(Color.caritasGris)
+                            }
+                        }
+                        Spacer()
+                        Image(systemName: expandida ? "chevron.up" : "chevron.down")
+                            .font(.caption).fontWeight(.medium)
+                            .foregroundStyle(Color.caritasGris)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                // Detalle expandible
+                if expandida {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Divider().padding(.vertical, 6)
+
+                        if !consulta.motivo.isEmpty {
+                            detalleRow("Motivo", valor: consulta.motivo)
+                        }
+                        if !consulta.diagnostico.isEmpty {
+                            detalleRow("Diagnóstico", valor: consulta.diagnostico)
+                        }
+                        if !consulta.notasMedico.isEmpty {
+                            detalleRow("Notas", valor: consulta.notasMedico)
+                        }
+                        if !consulta.lugar.isEmpty {
+                            detalleRow("Lugar", valor: consulta.lugar)
+                        }
+
+                        let recetas = RecetaLocal.decode(consulta.recetasJSON)
+                        if !recetas.isEmpty {
+                            detalleRow("Recetas", valor: recetas.map {
+                                [$0.nombre, $0.dosis, $0.duracion].filter { !$0.isEmpty }.joined(separator: " ")
+                            }.joined(separator: "\n"))
+                        } else if !consulta.medicamentos.isEmpty {
+                            detalleRow("Medicamentos", valor: consulta.medicamentos.joined(separator: ", "))
+                        }
+
+                        if let pa = consulta.presionArterial, !pa.isEmpty {
+                            detalleRow("Presión arterial", valor: pa)
+                        }
+                        if let peso = consulta.peso {
+                            detalleRow("Peso / Talla", valor: "\(peso) kg\(consulta.talla.map { " · \($0) cm" } ?? "")")
+                        }
+                        if !consulta.procedimientos.isEmpty {
+                            detalleRow("Procedimientos", valor: consulta.procedimientos.joined(separator: ", "))
+                        }
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
-            .padding(.bottom, 28)
+            .padding(.bottom, expandida ? 16 : 28)
+        }
+    }
+
+    private func detalleRow(_ etiqueta: String, valor: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(etiqueta)
+                .font(.caption).fontWeight(.medium)
+                .foregroundStyle(Color.caritasGris)
+            Text(valor)
+                .font(.caption)
+                .foregroundStyle(Color.caritasAzul)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
