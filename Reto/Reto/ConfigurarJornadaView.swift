@@ -16,6 +16,7 @@ struct ConfigurarJornadaView: View {
 
     // Personal
     @State private var personalSeleccionado: Set<UUID> = []
+    @State private var busquedaPersonal = ""
 
     // Descarga
     @State private var descargando = false
@@ -143,7 +144,30 @@ struct ConfigurarJornadaView: View {
                         .padding(.bottom, 32)
                     } else {
                         VStack(spacing: 0) {
-                            ForEach(todoElPersonal.filter { $0.esActivo }) { persona in
+                            TextField("Buscar por nombre o área…", text: $busquedaPersonal)
+                                .textFieldStyle(.plain)
+                                .padding(10)
+                                .background(Color(.systemGray6))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 12)
+
+                            let personalFiltrado = todoElPersonal.filter { persona in
+                                guard persona.esActivo else { return false }
+                                guard !busquedaPersonal.isEmpty else { return true }
+                                let q = busquedaPersonal
+                                    .folding(options: .diacriticInsensitive, locale: .current)
+                                    .lowercased()
+                                let nombre = persona.nombreCompleto
+                                    .folding(options: .diacriticInsensitive, locale: .current)
+                                    .lowercased()
+                                let areas = persona.areasDeServicio.joined(separator: " ")
+                                    .folding(options: .diacriticInsensitive, locale: .current)
+                                    .lowercased()
+                                return nombre.contains(q) || areas.contains(q)
+                            }
+
+                            ForEach(personalFiltrado) { persona in
                                 let seleccionado = personalSeleccionado.contains(persona.idPersonal)
                                 Button {
                                     if seleccionado { personalSeleccionado.remove(persona.idPersonal) }

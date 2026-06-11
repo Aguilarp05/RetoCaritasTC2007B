@@ -83,6 +83,8 @@ struct VistaPacienteRegistrado: View {
                 VStack(spacing: 0) {
                     FilaDatoPaciente(titulo: "Edad",      valor: "\(paciente.edad) años")
                     Divider().padding(.leading, 20)
+                    FilaDatoPaciente(titulo: "Fecha de nacimiento", valor: paciente.fechaNacimiento.formatted(date: .long, time: .omitted))
+                    Divider().padding(.leading, 20)
                     FilaDatoPaciente(titulo: "Sexo",      valor: paciente.sexoPaciente.rawValue.capitalized)
                     Divider().padding(.leading, 20)
                     FilaDatoPaciente(titulo: "Municipio", valor: paciente.municipio ?? "—")
@@ -365,8 +367,8 @@ struct TarjetaConsultaView: View {
             if !recetas.isEmpty {
                 Divider().padding(.leading, 24)
                 let resumen = recetas.map { r in
-                    [r.nombre, r.dosis, r.duracion].filter { !$0.isEmpty }.joined(separator: " ")
-                }.joined(separator: " · ")
+                    [r.nombre, r.dosis, r.frecuencia, r.duracion].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+                }.joined(separator: "\n")
                 filaExpediente(etiqueta: "Recetas", valor: resumen)
             } else if !consulta.medicamentos.isEmpty {
                 Divider().padding(.leading, 24)
@@ -636,8 +638,8 @@ struct HistorialMedicamentosPacienteView: View {
                                         Text(receta.nombre)
                                             .font(.subheadline).fontWeight(.medium)
                                             .foregroundStyle(Color.caritasAzul)
-                                        let detalle = [receta.dosis, receta.duracion]
-                                            .filter { !$0.isEmpty }.joined(separator: " · ")
+                                        let detalle = [receta.dosis, receta.frecuencia, receta.duracion]
+                                            .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
                                         if !detalle.isEmpty {
                                             Text(detalle)
                                                 .font(.caption).foregroundStyle(Color.caritasGris)
@@ -857,7 +859,7 @@ struct EntradaConsultaView: View {
                         let recetas = RecetaLocal.decode(consulta.recetasJSON)
                         if !recetas.isEmpty {
                             detalleRow("Recetas", valor: recetas.map {
-                                [$0.nombre, $0.dosis, $0.duracion].filter { !$0.isEmpty }.joined(separator: " ")
+                                [$0.nombre, $0.dosis, $0.frecuencia, $0.duracion].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
                             }.joined(separator: "\n"))
                         } else if !consulta.medicamentos.isEmpty {
                             detalleRow("Medicamentos", valor: consulta.medicamentos.joined(separator: ", "))
@@ -871,6 +873,13 @@ struct EntradaConsultaView: View {
                         }
                         if !consulta.procedimientos.isEmpty {
                             detalleRow("Procedimientos", valor: consulta.procedimientos.joined(separator: ", "))
+                        }
+
+                        if let path = consulta.consentimientoDentalPath {
+                            BotonConsentimientoPDF(nombreArchivo: path, titulo: "Consentimiento dental")
+                        }
+                        if let path = consulta.referenciaPath {
+                            BotonConsentimientoPDF(nombreArchivo: path, titulo: "Carta de referencia")
                         }
                     }
                     .transition(.opacity.combined(with: .move(edge: .top)))
@@ -889,6 +898,75 @@ struct EntradaConsultaView: View {
                 .font(.caption)
                 .foregroundStyle(Color.caritasAzul)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+// MARK: - Visor de consentimiento dental guardado
+
+struct BotonConsentimientoPDF: View {
+    let nombreArchivo: String
+    var titulo: String = "Ver documento"
+    @State private var mostrarVisor = false
+    @State private var mostrarShare = false
+
+    private var url: URL? {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+            .appendingPathComponent(nombreArchivo)
+    }
+
+    var body: some View {
+        Button { mostrarVisor = true } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "doc.richtext.fill")
+                    .font(.caption).foregroundStyle(Color.caritasPrimario)
+                Text(titulo)
+                    .font(.caption).foregroundStyle(Color.caritasPrimario)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption2).foregroundStyle(Color.caritasGris)
+            }
+            .padding(10)
+            .background(Color.caritasSuave)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .sheet(isPresented: $mostrarVisor) {
+            if let url {
+                NavigationStack {
+                    PDFKitView(url: url)
+                        .ignoresSafeArea(edges: .bottom)
+                        .navigationTitle(titulo)
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Cerrar") { mostrarVisor = false }
+                            }
+                            ToolbarItem(placement: .primaryAction) {
+                                Menu {
+                                    Button { mostrarShare = true } label: {
+                                        Label("Compartir", systemImage: "square.and.arrow.up")
+                                    }
+                                    Button {
+                                        let info = UIPrintInfo(dictionary: nil)
+                                        info.outputType = .general
+                                        info.jobName = titulo
+                                        let printer = UIPrintInteractionController.shared
+                                        printer.printInfo = info
+                                        printer.printingItem = url
+                                        printer.present(animated: true)
+                                    } label: {
+                                        Label("Imprimir", systemImage: "printer")
+                                    }
+                                } label: {
+                                    Image(systemName: "ellipsis.circle")
+                                }
+                            }
+                        }
+                }
+                .sheet(isPresented: $mostrarShare) {
+                    ShareSheet(items: [url])
+                }
+            }
         }
     }
 }

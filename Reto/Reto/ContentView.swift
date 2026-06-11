@@ -98,7 +98,7 @@ struct SidebarMenuView: View {
         VStack(alignment: .leading, spacing: 0) {
 
             // Header
-            Image("Logotipo Cáritas de Monterrey, A.B.P.")
+            Image("LogoCaritas")
                 .resizable()
                 .scaledToFit()
                 .frame(height: 72)

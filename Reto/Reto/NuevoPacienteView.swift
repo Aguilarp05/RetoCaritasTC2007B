@@ -63,6 +63,8 @@ struct NuevoPacienteView: View {
     @State private var fechaNacimiento = Date()
     @State private var sexo: Sexo?     = nil
     @State private var telefono        = ""
+    @State private var estadoNacimiento       = "Nuevo León"
+    @State private var homoclave              = ""
     @State private var estadoSeleccionado     = "Nuevo León"
     @State private var municipioSeleccionado  = ""
     @State private var comunidad              = ""
@@ -71,8 +73,13 @@ struct NuevoPacienteView: View {
     @State private var servicioSeleccionado  = "Consulta general"
     @State private var medicoSeleccionado    = ""
     @State private var motivoConsulta        = ""
+    @State private var diagnosticoWizard    = ""
     @State private var notasMedico           = ""
     @State private var tieneIMSS             = ""
+    @State private var esOperacionBucal: Bool? = nil
+    @State private var riesgosOperacion      = ""
+    @State private var pronosticoOperacion   = ""
+    @State private var tipoActoOperacion     = ""
 
     // Paso 4 — Signos vitales + socioeconómico
     @State private var peso               = ""
@@ -92,7 +99,13 @@ struct NuevoPacienteView: View {
 
     // Privacidad
     @State private var aceptaPrivacidad = false
-    @State private var mostrarPDF       = false
+    @State private var mostrarPDF                  = false
+    @State private var mostrarConsentimientoOdonto = false
+    @State private var consentimientoDentalPath: String? = nil
+    @State private var mostrarReferencia = false
+    @State private var referenciaPath: String? = nil
+    @State private var requiereReferencia: Bool? = nil
+    @State private var institucionReferencia = ""
     @State private var trazos: [Line]   = []
 
     // MARK: - ID interno
@@ -101,9 +114,61 @@ struct NuevoPacienteView: View {
             primerNombre: primerNombre,
             segundoNombre: segundoNombre.isEmpty ? nil : segundoNombre,
             fechaNacimiento: fechaNacimiento,
-            municipio: municipioSeleccionado,
+            municipio: estadoNacimiento,
             sexo: sexo ?? .noDefinido
         )
+    }
+
+    // MARK: - CURP
+    private let estadosCodes: [(nombre: String, codigo: String)] = [
+        ("Aguascalientes", "AS"), ("Baja California", "BC"), ("Baja California Sur", "BS"),
+        ("Campeche", "CC"), ("Chiapas", "CS"), ("Chihuahua", "CH"),
+        ("Ciudad de México", "DF"), ("Coahuila", "CL"), ("Colima", "CM"),
+        ("Durango", "DG"), ("Estado de México", "MC"), ("Guanajuato", "GT"),
+        ("Guerrero", "GR"), ("Hidalgo", "HG"), ("Jalisco", "JC"),
+        ("Michoacán", "MN"), ("Morelos", "MS"), ("Nayarit", "NT"),
+        ("Nuevo León", "NL"), ("Oaxaca", "OC"), ("Puebla", "PL"),
+        ("Querétaro", "QT"), ("Quintana Roo", "QR"), ("San Luis Potosí", "SP"),
+        ("Sinaloa", "SL"), ("Sonora", "SR"), ("Tabasco", "TC"),
+        ("Tamaulipas", "TS"), ("Tlaxcala", "TL"), ("Veracruz", "VZ"),
+        ("Yucatán", "YN"), ("Zacatecas", "ZS"), ("Nacido en el extranjero", "NE"),
+    ]
+
+    var curpBase: String {
+        let vowels     = CharacterSet(charactersIn: "AEIOU")
+        let consonants = CharacterSet(charactersIn: "BCDFGHJKLMNPQRSTVWXYZ")
+        func limpiar(_ s: String) -> String {
+            s.uppercased().folding(options: .diacriticInsensitive, locale: .current).filter { $0.isLetter }
+        }
+        let pa = limpiar(primerApellido)
+        let sa = limpiar(segundoApellido)
+        let nm = limpiar(primerNombre.split(separator: " ").first.map(String.init) ?? primerNombre)
+        let l1 = pa.isEmpty ? "X" : String(pa.prefix(1))
+        let l2 = pa.dropFirst().first(where: { String($0).rangeOfCharacter(from: vowels) != nil }).map(String.init) ?? "X"
+        let l3 = sa.isEmpty ? "X" : String(sa.prefix(1))
+        let l4 = nm.isEmpty ? "X" : String(nm.prefix(1))
+        let cal = Calendar.current
+        let yy = String(format: "%02d", cal.component(.year,  from: fechaNacimiento) % 100)
+        let mm = String(format: "%02d", cal.component(.month, from: fechaNacimiento))
+        let dd = String(format: "%02d", cal.component(.day,   from: fechaNacimiento))
+        let sx: String
+        switch sexo {
+        case .masculino:  sx = "H"
+        case .femenino:   sx = "M"
+        default:          sx = "X"
+        }
+        let st = estadosCodes.first(where: { $0.nombre == estadoNacimiento })?.codigo ?? "NL"
+        let c1 = pa.dropFirst().first(where: { String($0).rangeOfCharacter(from: consonants) != nil }).map(String.init) ?? "X"
+        let c2 = sa.dropFirst().first(where: { String($0).rangeOfCharacter(from: consonants) != nil }).map(String.init) ?? "X"
+        let c3 = nm.dropFirst().first(where: { String($0).rangeOfCharacter(from: consonants) != nil }).map(String.init) ?? "X"
+        return "\(l1)\(l2)\(l3)\(l4)\(yy)\(mm)\(dd)\(sx)\(st)\(c1)\(c2)\(c3)"
+    }
+
+    // CURP completa solo si el usuario ingresó la homoclave (2 chars); nil = sin CURP
+    var curpCompleto: String? {
+        let hcv = homoclave.codigoNormalizado
+        guard hcv.count == 2 else { return nil }
+        return curpBase + hcv
     }
 
     // MARK: - Validación por paso
@@ -276,7 +341,9 @@ struct NuevoPacienteView: View {
         case "consulta":         return "Motivo de consulta"
         case "signos_vitales":   return "Signos vitales"
         case "recetas":          return "Receta médica"
-        case "privacidad":       return "Aviso de privacidad"
+        case "privacidad":
+            let tieneExtra = (servicioSeleccionado == "Consulta dental" && esOperacionBucal == true) || requiereReferencia == true
+            return tieneExtra ? "Aviso(s) de privacidad" : "Aviso de privacidad"
         default:                 return ""
         }
     }
@@ -528,9 +595,22 @@ struct NuevoPacienteView: View {
 
     // MARK: - Detección de duplicados (nuevo paciente)
 
-    // Retorna el paciente más similar al formulario en curso y su puntuación (0-100).
+    // Puntuación proporcional: caracteres que coinciden posicionalmente / longitud máxima × maxPts.
+    // Maneja exactos (ratio 1.0 → maxPts), typos de un dedo y prefijos cortos de forma continua.
+    private func puntajeNombre(_ a: String, _ b: String, maxPts: Int = 30) -> Int {
+        guard !a.isEmpty, !b.isEmpty else { return 0 }
+        var freqA = [Character: Int]()
+        var freqB = [Character: Int]()
+        a.forEach { freqA[$0, default: 0] += 1 }
+        b.forEach { freqB[$0, default: 0] += 1 }
+        let comunes = freqA.reduce(0) { $0 + min($1.value, freqB[$1.key, default: 0]) }
+        return Int(Double(comunes) / Double(max(a.count, b.count)) * Double(maxPts))
+    }
+
+    // Retorna el paciente más similar al formulario en curso, su similitud en % relativo al máximo
+    // alcanzable con los campos disponibles, y los campos que coincidieron.
     // Solo corre cuando ya hay nombre + apellido con al menos 2 caracteres.
-    private var candidatoDuplicado: (paciente: Paciente, score: Int)? {
+    private var candidatoDuplicado: (paciente: Paciente, score: Int, campos: [String])? {
         let n1 = primerNombre.trimmingCharacters(in: .whitespaces)
         let a1 = primerApellido.trimmingCharacters(in: .whitespaces)
         guard n1.count >= 2, a1.count >= 2 else { return nil }
@@ -542,45 +622,72 @@ struct NuevoPacienteView: View {
         }
         let cn1 = clean(n1), ca1 = clean(a1), ca2 = clean(segundoApellido)
         let cal = Calendar.current
-        var mejor: (Paciente, Int)? = nil
 
-        for p in pacientes {
+        // Máximo alcanzable según los campos que el usuario ya rellenó
+        var maxPosible = 85  // nombre (30) + apellido (30) + fecha (25) — siempre presentes
+        if !ca2.isEmpty            { maxPosible += 10 }
+        if !municipioSeleccionado.isEmpty { maxPosible += 5 }
+        let umbral = maxPosible * 70 / 100
+
+        var mejor: (Paciente, Int, [String])? = nil
+
+        // Solo busca duplicados en el municipio de la jornada activa; si no hay jornada, busca en todos
+        let pool: [Paciente]
+        if let munJornada = jornadaActiva?.locacion?.municipio, !munJornada.isEmpty {
+            pool = pacientes.filter { clean($0.municipio ?? "") == clean(munJornada) }
+        } else {
+            pool = pacientes
+        }
+
+        for p in pool {
             var score = 0
+            var campos: [String] = []
 
-            // Primer nombre — 30 pts exacto, 15 pts prefijo
+            // Primer nombre — proporcional (30 pts = coincidencia total)
             let pn1 = clean(p.primerNombre)
-            if pn1 == cn1 { score += 30 }
-            else if pn1.hasPrefix(cn1) || cn1.hasPrefix(pn1) { score += 15 }
+            let ptsnombre = puntajeNombre(pn1, cn1)
+            score += ptsnombre
+            if ptsnombre >= 20 { campos.append("Nombre") }
 
-            // Primer apellido — 30 pts exacto, 15 pts prefijo
+            // Primer apellido — proporcional (30 pts = coincidencia total)
             let pa1 = clean(p.primerApellido)
-            if pa1 == ca1 { score += 30 }
-            else if pa1.hasPrefix(ca1) || ca1.hasPrefix(pa1) { score += 15 }
+            let ptsapellido = puntajeNombre(pa1, ca1)
+            score += ptsapellido
+            if ptsapellido >= 20 { campos.append("Primer apellido") }
 
             // Fecha de nacimiento — 25 pts mismo día, 10 pts mismo año
             if cal.isDate(p.fechaNacimiento, inSameDayAs: fechaNacimiento) {
                 score += 25
+                campos.append("Fecha de nacimiento")
             } else if cal.component(.year, from: p.fechaNacimiento) ==
                       cal.component(.year, from: fechaNacimiento) {
                 score += 10
+                campos.append("Año de nacimiento")
             }
 
             // Segundo apellido — 10 pts exacto
-            if !ca2.isEmpty && clean(p.segundoApellido ?? "") == ca2 { score += 10 }
+            if !ca2.isEmpty && clean(p.segundoApellido ?? "") == ca2 {
+                score += 10
+                campos.append("Segundo apellido")
+            }
 
             // Municipio — 5 pts
             if !municipioSeleccionado.isEmpty,
                let mun = p.municipio,
-               clean(mun) == clean(municipioSeleccionado) { score += 5 }
+               clean(mun) == clean(municipioSeleccionado) {
+                score += 5
+                campos.append("Municipio")
+            }
 
-            if score >= 70, mejor == nil || score > mejor!.1 { mejor = (p, score) }
+            if score >= umbral, mejor == nil || score > mejor!.1 { mejor = (p, score, campos) }
         }
-        return mejor.map { (paciente: $0.0, score: $0.1) }
+        // El score devuelto es % relativo al máximo alcanzable (0–100)
+        return mejor.map { (paciente: $0.0, score: $0.1 * 100 / maxPosible, campos: $0.2) }
     }
 
     @ViewBuilder
     private var bannerDuplicado: some View {
-        if let (candidato, score) = candidatoDuplicado,
+        if let (candidato, score, campos) = candidatoDuplicado,
            idDuplicadoDescartado != candidato.idPaciente {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -591,12 +698,16 @@ struct NuevoPacienteView: View {
                     Text("¿Este paciente ya tiene expediente?")
                         .font(.subheadline).fontWeight(.semibold)
                         .foregroundStyle(Color.caritasAzul)
-                    Text("\(candidato.nombreCompleto) · \(candidato.edad) años\(candidato.municipio.map { " · \($0)" } ?? "") · \(score)% similitud")
+                    Text("\(candidato.nombreCompleto) · \(candidato.edad) años\(candidato.municipio.map { " · \($0)" } ?? "")")
                         .font(.caption).foregroundStyle(Color.caritasGris)
+                    if !campos.isEmpty {
+                        Text("Similitud en: \(campos.joined(separator: " · "))")
+                            .font(.caption).foregroundStyle(Color.caritasGris)
+                    }
                     Button {
+                        pasoActual = 0
                         pacienteParaConsulta = candidato
                         tipoPaciente = "regresa"
-                        withAnimation(.spring(response: 0.3)) { pasoActual = 0 }
                     } label: {
                         Text("Ver expediente →")
                             .font(.caption).fontWeight(.semibold)
@@ -790,6 +901,58 @@ struct NuevoPacienteView: View {
                 telefono = String(soloDigitos.prefix(10))
             }
 
+            separador("Lugar de nacimiento")
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Estado de nacimiento")
+                    .font(.caption)
+                    .foregroundStyle(Color.caritasGris)
+                Picker("Estado", selection: $estadoNacimiento) {
+                    ForEach(estadosCodes, id: \.nombre) { Text($0.nombre).tag($0.nombre) }
+                }
+                .pickerStyle(.menu)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.systemGray6))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("CURP")
+                    .font(.caption)
+                    .foregroundStyle(Color.caritasGris)
+                HStack(spacing: 0) {
+                    Text(curpBase)
+                        .font(.system(.subheadline, design: .monospaced))
+                        .foregroundStyle(Color.caritasGris)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.systemGray5))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    TextField("AA", text: $homoclave)
+                        .font(.system(.subheadline, design: .monospaced))
+                        .multilineTextAlignment(.center)
+                        .textInputAutocapitalization(.characters)
+                        .autocorrectionDisabled()
+                        .frame(width: 52)
+                        .padding(.vertical, 12)
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .padding(.leading, 6)
+                        .onChange(of: homoclave) { _, nuevo in
+                            homoclave = String(nuevo.uppercased()
+                                .folding(options: .diacriticInsensitive, locale: .current)
+                                .filter { $0.isLetter || $0.isNumber }
+                                .prefix(2))
+                        }
+                }
+                Text(homoclave.count == 2 ? "CURP completa: \(curpCompleto ?? "")" : "Ingresa la homoclave (2 letras) para guardar la CURP")
+                    .font(.caption2)
+                    .foregroundStyle(homoclave.count == 2 ? Color.caritasPrimario : Color.caritasGris)
+                    .padding(.top, 2)
+            }
+
             separador("Lugar de residencia")
 
             VStack(alignment: .leading, spacing: 4) {
@@ -888,7 +1051,7 @@ struct NuevoPacienteView: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Motivo principal *")
+                Text("Motivo de consulta *")
                     .font(.caption)
                     .foregroundStyle(Color.caritasGris)
                 TextField("Describe brevemente el motivo de consulta", text: $motivoConsulta, axis: .vertical)
@@ -897,6 +1060,73 @@ struct NuevoPacienteView: View {
                     .background(Color(.systemGray6))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .font(.subheadline)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Diagnóstico *")
+                    .font(.caption)
+                    .foregroundStyle(Color.caritasGris)
+                TextField("Diagnóstico o impresión diagnóstica", text: $diagnosticoWizard, axis: .vertical)
+                    .lineLimit(2...4)
+                    .padding(12)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .font(.subheadline)
+            }
+
+            if servicioSeleccionado == "Consulta dental" {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("¿Incluye operación / procedimiento invasivo?")
+                        .font(.caption).foregroundStyle(Color.caritasGris)
+                    HStack(spacing: 10) {
+                        botonOpcion(etiqueta: "Sí", valor: "si",
+                                    seleccionado: Binding(
+                                        get: { esOperacionBucal == true ? "si" : "" },
+                                        set: { if $0 == "si" { esOperacionBucal = true } }))
+                        botonOpcion(etiqueta: "No", valor: "no",
+                                    seleccionado: Binding(
+                                        get: { esOperacionBucal == false ? "no" : "" },
+                                        set: { if $0 == "no" { esOperacionBucal = false } }))
+                    }
+                }
+
+                Group {
+                    if esOperacionBucal == true {
+                        VStack(alignment: .leading, spacing: 14) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Riesgos del procedimiento (opcional)")
+                                    .font(.caption).foregroundStyle(Color.caritasGris)
+                                TextField("Describe los riesgos", text: $riesgosOperacion, axis: .vertical)
+                                    .lineLimit(2...4)
+                                    .padding(12)
+                                    .background(Color(.systemGray6))
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    .font(.subheadline)
+                            }
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Pronóstico")
+                                    .font(.caption).foregroundStyle(Color.caritasGris)
+                                HStack(spacing: 8) {
+                                    botonOpcion(etiqueta: "Bueno",     valor: "Bueno",     seleccionado: $pronosticoOperacion)
+                                    botonOpcion(etiqueta: "Malo",      valor: "Malo",      seleccionado: $pronosticoOperacion)
+                                    botonOpcion(etiqueta: "Reservado", valor: "Reservado", seleccionado: $pronosticoOperacion)
+                                }
+                            }
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Tipo de acto odontológico")
+                                    .font(.caption).foregroundStyle(Color.caritasGris)
+                                HStack(spacing: 8) {
+                                    botonOpcion(etiqueta: "Urgente",    valor: "Urgente",    seleccionado: $tipoActoOperacion)
+                                    botonOpcion(etiqueta: "De riesgo",  valor: "De riesgo",  seleccionado: $tipoActoOperacion)
+                                    botonOpcion(etiqueta: "No urgente", valor: "No urgente", seleccionado: $tipoActoOperacion)
+                                }
+                            }
+                        }
+                    }
+                }
+                .animation(.easeInOut(duration: 0.2), value: esOperacionBucal)
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -1028,8 +1258,11 @@ struct NuevoPacienteView: View {
 
             campo("Pulso (lpm)", text: $pulso,
                   keyboard: .numberPad, campoFoco: .pulso, siguiente: .frecuenciaCardiaca)
-            .onChange(of: pulso) { _, nuevo in
-                if frecuenciaCardiaca.isEmpty { frecuenciaCardiaca = nuevo }
+            .onChange(of: pulso) { anterior, nuevo in
+                // Sincroniza si el campo estaba vacío o el usuario no lo editó manualmente
+                if frecuenciaCardiaca.isEmpty || frecuenciaCardiaca == anterior {
+                    frecuenciaCardiaca = nuevo
+                }
             }
 
             campo("Frec. cardiaca (lpm)", text: $frecuenciaCardiaca,
@@ -1117,62 +1350,80 @@ struct NuevoPacienteView: View {
     // MARK: - Paso Recetas
 
     var pasoRecetas: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("Indica los medicamentos recetados. Puedes dejar este apartado vacío si no aplica.")
                 .font(.subheadline)
                 .foregroundStyle(Color.caritasGris)
 
-            // Encabezados de columna
-            HStack(spacing: 8) {
-                Text("Medicamento")
-                    .font(.caption).foregroundStyle(Color.caritasGris)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text("Cantidad")
-                    .font(.caption).foregroundStyle(Color.caritasGris)
-                    .frame(width: 70, alignment: .leading)
-                Text("Unidad")
-                    .font(.caption).foregroundStyle(Color.caritasGris)
-                    .frame(width: 90, alignment: .leading)
-                Text("Duración")
-                    .font(.caption).foregroundStyle(Color.caritasGris)
-                    .frame(width: 100, alignment: .leading)
-                Spacer().frame(width: 32)
+            // Encabezados
+            HStack(spacing: 6) {
+                Text("Medicamento").frame(maxWidth: .infinity, alignment: .leading)
+                Text("Cant.").frame(width: 50, alignment: .leading)
+                Text("Unidad").frame(width: 76, alignment: .leading)
+                Text("Frecuencia").frame(maxWidth: .infinity, alignment: .leading)
+                Text("Días").frame(width: 86, alignment: .leading)
+                Spacer().frame(width: 28)
             }
+            .font(.caption)
+            .foregroundStyle(Color.caritasGris)
+            .padding(.horizontal, 4)
 
             ForEach($recetasWizard) { $receta in
-                HStack(spacing: 8) {
-                    TextField("", text: $receta.nombre)
-                        .padding(10)
+                HStack(spacing: 6) {
+                    // Nombre
+                    TextField("Medicamento", text: $receta.nombre)
+                        .padding(.horizontal, 10).padding(.vertical, 8)
                         .background(Color(.systemGray6))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .font(.subheadline)
                         .frame(maxWidth: .infinity)
 
-                    TextField("", text: $receta.dosisAmount)
+                    // Cantidad
+                    TextField("0", text: $receta.dosisAmount)
                         .keyboardType(.decimalPad)
-                        .padding(10)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 6).padding(.vertical, 8)
                         .background(Color(.systemGray6))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .font(.subheadline)
-                        .frame(width: 70)
+                        .frame(width: 50)
 
+                    // Unidad
                     Picker("", selection: $receta.dosisUnidad) {
                         ForEach(unidadesDosis, id: \.self) { Text($0).tag($0) }
                     }
                     .pickerStyle(.menu)
-                    .padding(.vertical, 8)
-                    .padding(.horizontal, 6)
+                    .padding(.vertical, 6).padding(.horizontal, 4)
                     .background(Color(.systemGray6))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .frame(width: 90)
+                    .frame(width: 76)
 
-                    TextField("", text: $receta.duracion)
-                        .padding(10)
+                    // Frecuencia
+                    TextField("Cada 8 hrs, 1 vez/día…", text: $receta.frecuencia)
+                        .padding(.horizontal, 10).padding(.vertical, 8)
                         .background(Color(.systemGray6))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .font(.subheadline)
-                        .frame(width: 100)
+                        .frame(maxWidth: .infinity)
 
+                    // Días: picker numérico + label
+                    HStack(spacing: 4) {
+                        Picker("", selection: $receta.duracionDias) {
+                            ForEach(1..<61) { Text("\($0)").tag($0) }
+                        }
+                        .pickerStyle(.menu)
+                        .padding(.vertical, 6).padding(.horizontal, 4)
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .frame(width: 56)
+
+                        Text("días")
+                            .font(.caption)
+                            .foregroundStyle(Color.caritasGris)
+                    }
+                    .frame(width: 86)
+
+                    // Eliminar
                     Button {
                         recetasWizard.removeAll { $0.id == receta.id }
                     } label: {
@@ -1181,7 +1432,7 @@ struct NuevoPacienteView: View {
                             .font(.title3)
                     }
                     .disabled(recetasWizard.count <= 1)
-                    .frame(width: 32)
+                    .frame(width: 28)
                 }
             }
 
@@ -1194,6 +1445,39 @@ struct NuevoPacienteView: View {
                     .foregroundStyle(Color.caritasPrimario)
             }
             .padding(.top, 4)
+
+            Divider().padding(.vertical, 4)
+
+            // Referencia al final, después de decidir medicamentos
+            Group {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("¿El paciente requiere referencia a otro médico/especialista?")
+                        .font(.caption).foregroundStyle(Color.caritasGris)
+                    HStack(spacing: 10) {
+                        botonOpcion(etiqueta: "Sí", valor: "si",
+                                    seleccionado: Binding(
+                                        get: { requiereReferencia == true ? "si" : "" },
+                                        set: { if $0 == "si" { requiereReferencia = true } }))
+                        botonOpcion(etiqueta: "No", valor: "no",
+                                    seleccionado: Binding(
+                                        get: { requiereReferencia == false ? "no" : "" },
+                                        set: { if $0 == "no" { requiereReferencia = false } }))
+                    }
+                }
+
+                if requiereReferencia == true {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Institución / Especialidad a referir")
+                            .font(.caption).foregroundStyle(Color.caritasGris)
+                        TextField("Ej: Hospital General, Cardiología...", text: $institucionReferencia)
+                            .padding(12)
+                            .background(Color(.systemGray6))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .font(.subheadline)
+                    }
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: requiereReferencia)
         }
     }
 
@@ -1229,6 +1513,73 @@ struct NuevoPacienteView: View {
                                 }
                             }
                     }
+                }
+            }
+
+            if servicioSeleccionado == "Consulta dental" && esOperacionBucal == true {
+                Button { mostrarConsentimientoOdonto = true } label: {
+                    HStack {
+                        Image(systemName: "doc.text.fill").foregroundStyle(Color.caritasPrimario)
+                        Text("Ver consentimiento informado (Odontología)")
+                            .font(.subheadline).foregroundStyle(Color.caritasPrimario)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption).foregroundStyle(Color.caritasGris)
+                    }
+                    .padding(14)
+                    .background(Color.caritasSuave)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .sheet(isPresented: $mostrarConsentimientoOdonto) {
+                    let nombre = [primerNombre, segundoNombre, primerApellido, segundoApellido]
+                        .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                        .map { $0.nombrePropio }
+                        .joined(separator: " ")
+                    ConsentimientoOdontoView(
+                        nombrePaciente:      nombre,
+                        fechaNacimiento:     fechaNacimiento,
+                        medico:              medicoSeleccionado,
+                        municipio:           municipioSeleccionado,
+                        diagnosticoInicial:  diagnosticoWizard,
+                        esOperacionInicial:  esOperacionBucal,
+                        riesgosInicial:      riesgosOperacion,
+                        pronosticoInicial:   pronosticoOperacion,
+                        tipoActoInicial:     tipoActoOperacion,
+                        omitirFormulario:    true,
+                        onPDFGuardado: { ruta in consentimientoDentalPath = ruta }
+                    )
+                }
+            }
+
+            if requiereReferencia == true {
+                Button { mostrarReferencia = true } label: {
+                    HStack {
+                        Image(systemName: "arrow.turn.up.right")
+                            .foregroundStyle(Color.caritasPrimario)
+                        Text("Ver carta de referencia")
+                            .font(.subheadline).foregroundStyle(Color.caritasPrimario)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption).foregroundStyle(Color.caritasGris)
+                    }
+                    .padding(14)
+                    .background(Color.caritasSuave)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .sheet(isPresented: $mostrarReferencia) {
+                    let nombre = [primerNombre, segundoNombre, primerApellido, segundoApellido]
+                        .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                        .map { $0.nombrePropio }
+                        .joined(separator: " ")
+                    ReferenciaView(
+                        nombrePaciente:    nombre,
+                        fechaNacimiento:   fechaNacimiento,
+                        medico:            medicoSeleccionado,
+                        motivoInicial:     motivoConsulta,
+                        institucionInicial: institucionReferencia,
+                        omitirFormulario:  !institucionReferencia.trimmingCharacters(in: .whitespaces).isEmpty,
+                        onPDFGuardado: { ruta in referenciaPath = ruta }
+                    )
                 }
             }
 
@@ -1326,19 +1677,6 @@ struct NuevoPacienteView: View {
         }
     }
 
-    struct PDFKitView: UIViewRepresentable {
-        let url: URL
-        func makeUIView(context: Context) -> PDFView {
-            let pdfView = PDFView()
-            pdfView.document = PDFDocument(url: url)
-            pdfView.autoScales = true
-            pdfView.displayMode = .singlePageContinuous
-            pdfView.displayDirection = .vertical
-            return pdfView
-        }
-        func updateUIView(_ uiView: PDFView, context: Context) {}
-    }
-
     // MARK: - Persistencia
 
     private func guardarPaciente() {
@@ -1356,7 +1694,6 @@ struct NuevoPacienteView: View {
         let nombre2N   = segundoNombre.nombrePropio
         let apellido1N = primerApellido.nombrePropio
         let apellido2N = segundoApellido.nombrePropio
-        let curpN      = curp.codigoNormalizado
         let comunidadN = comunidad.nombrePropio
         let municipioN = municipioSeleccionado.nombrePropio
 
@@ -1365,10 +1702,10 @@ struct NuevoPacienteView: View {
             segundoNombre:         nombre2N.isEmpty ? nil : nombre2N,
             primerApellido:        apellido1N,
             segundoApellido:       apellido2N.isEmpty ? nil : apellido2N,
-            curpPaciente:          curpN.isEmpty ? nil : curpN,
+            curpPaciente:          curpCompleto,
             notas:                 nil,
             fechaNacimiento:       fechaNacimiento,
-            lugarNacimiento:       municipioN.isEmpty ? comunidadN : municipioN,
+            lugarNacimiento:       estadoNacimiento,
             caritasId:             caritasIdGenerado,
             sexoPaciente:          sexo ?? .noDefinido,
             telefono:              telefono.limpio.isEmpty ? nil : telefono.limpio,
@@ -1387,7 +1724,7 @@ struct NuevoPacienteView: View {
             fecha:                  Date(),
             lugar:                  comunidadN,
             motivo:                 motivoConsulta.textoLibre,
-            diagnostico:            "",
+            diagnostico:            diagnosticoWizard.textoLibre,
             notasMedico:            notasMedico.textoLibre,
             medico:                 medicoSeleccionado,
             tipoPaciente:           tipoRegistro,
@@ -1399,9 +1736,11 @@ struct NuevoPacienteView: View {
             frecuenciaCardiaca:     Int(frecuenciaCardiaca),
             frecuenciaRespiratoria: Int(frecuenciaResp)
         )
+        consulta.consentimientoDentalPath = consentimientoDentalPath
+        consulta.referenciaPath = referenciaPath
         let recetasValidas = recetasWizard.filter { !$0.nombre.trimmingCharacters(in: .whitespaces).isEmpty }
         if !recetasValidas.isEmpty {
-            let locales = recetasValidas.map { RecetaLocal(nombre: $0.nombre, dosis: $0.dosisCompleta, duracion: $0.duracion, notas: nil) }
+            let locales = recetasValidas.map { RecetaLocal(nombre: $0.nombre, dosis: $0.dosisCompleta, duracion: $0.duracion, frecuencia: $0.frecuencia.isEmpty ? nil : $0.frecuencia, notas: nil) }
             consulta.recetasJSON = (try? JSONEncoder().encode(locales)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
             consulta.medicamentos = recetasValidas.map { $0.nombre }
         }
@@ -1444,13 +1783,17 @@ struct NuevoPacienteView: View {
         fechaBusqueda = Date(); usarFechaBusqueda = false
         primerNombre = ""; segundoNombre = ""; primerApellido = ""; segundoApellido = ""
         fechaNacimiento = Date(); sexo = nil; telefono = ""
+        estadoNacimiento = "Nuevo León"; homoclave = ""
         estadoSeleccionado = "Nuevo León"; municipioSeleccionado = ""; comunidad = ""
         servicioSeleccionado = "Consulta general"; medicoSeleccionado = ""
-        motivoConsulta = ""; notasMedico = ""; tieneIMSS = ""
+        motivoConsulta = ""; diagnosticoWizard = ""; notasMedico = ""; tieneIMSS = ""
+        esOperacionBucal = nil; riesgosOperacion = ""; pronosticoOperacion = ""; tipoActoOperacion = ""
+        requiereReferencia = nil; institucionReferencia = ""
         peso = ""; talla = ""; presionSistolica = ""; presionDiastolica = ""; pulso = ""
         frecuenciaCardiaca = ""; frecuenciaResp = ""; perimetroAbdominal = ""
         numIntegrantes = 0; gradoEstudios = ""; ingresosMensuales = ""
         recetasWizard = [RecetaWizard()]
+        consentimientoDentalPath = nil; referenciaPath = nil
         aceptaPrivacidad = false; mostrarPDF = false; trazos = []
     }
 
@@ -1461,11 +1804,13 @@ struct RecetaWizard: Identifiable {
     var nombre: String = ""
     var dosisAmount: String = ""
     var dosisUnidad: String = "mg"
-    var duracion: String = ""
+    var duracionDias: Int = 7
+    var frecuencia: String = ""
 
     var dosisCompleta: String {
         dosisAmount.isEmpty ? "" : "\(dosisAmount) \(dosisUnidad)"
     }
+    var duracion: String { duracionDias > 0 ? "\(duracionDias) días" : "" }
 }
 
 let unidadesDosis = ["mg", "g", "ml", "tab.", "cáp.", "gotas", "sobre", "amp."]

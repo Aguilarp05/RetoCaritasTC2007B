@@ -24,11 +24,13 @@ xcodebuild -project Reto/Reto.xcodeproj -scheme Reto -destination 'platform=iOS 
 
 **SwiftUI + SwiftData**, no external dependencies. Backend sync via `CaritasSyncVM` (FastAPI + MySQL, requires school VPN).
 
+The Xcode project uses `PBXFileSystemSynchronizedRootGroup` — all files placed in `Reto/Reto/` are automatically included in the build and app bundle without needing to modify the `.xcodeproj`.
+
 ### Data models (`@Model` classes backed by SwiftData)
 
 | File | Class | Key relationships |
 |---|---|---|
-| `Paciente.swift` | `Paciente` | owns `[Consulta]` and `[MedicamentoPaciente]` (cascade-delete); owns `[ConsentimientoPrivacidad]`; `condicionesCronicas: [String]` |
+| `Paciente.swift` | `Paciente` | owns `[Consulta]` and `[MedicamentoPaciente]` (cascade-delete); owns `[ConsentimientoPrivacidad]`; `condicionesCronicas: [String]`; `lugarNacimiento: String?` (estado de nacimiento); `caritasId: String?` |
 | `Consulta.swift` | `Consulta` | belongs to one `Paciente`; `recetasJSON: String` stores `[RecetaLocal]` as JSON (nombre + dosis combinada + duracion); `medicamentos: [String]` for names only |
 | `MedicamentoPaciente.swift` | `MedicamentoPaciente` | belongs to `Paciente`; `indicacion` = dosis + instrucciones combinadas; `duracion: String?`; `estaActivo` = `fechaFin == nil` |
 | `Personal.swift` | `Personal` | `curpPersonal` is functional PK; `areasDeServicio: [String]`; `matricula: String?` nil for students |
@@ -38,7 +40,7 @@ xcodebuild -project Reto/Reto.xcodeproj -scheme Reto -destination 'platform=iOS 
 
 `RetoApp.swift` creates the single `ModelContainer` with the full schema.
 
-Domain enums: `Sexo` (masculino / femenino / noDefinido) and `TipoConsulta` (consultaGeneral / entregaMedicamentos / optometrista / dental).
+Domain enums: `Sexo` (masculino / femenino / noDefinido = "no binario") and `TipoConsulta` (consultaGeneral / entregaMedicamentos / optometrista / dental).
 
 `Paciente` does **not** have follow-up scheduling fields — Cáritas operates on walk-in basis only.
 
@@ -49,21 +51,27 @@ Domain enums: `Sexo` (masculino / femenino / noDefinido) and `TipoConsulta` (con
 | `ContentView.swift` | Root `NavigationSplitView`; sidebar; auto-opens `ConfigurarJornadaView` when no active jornada; passes `syncVM` as `environmentObject` to `ConfigurarJornadaView` |
 | `DashboardView.swift` | Jornada banner, services grid, patient count and last 5 patients — all filtered by active jornada; tapping a patient closes the sidebar and opens `ExpedientePacienteView` |
 | `NuevoPacienteView.swift` | Multi-step wizard for new patient registration (see Wizard steps below) |
-| `HistorialJornadaView.swift` | Patient list filtered by the active jornada's municipality plus any patient attended today; tapping a patient closes the sidebar and opens `ExpedientePacienteView` |
-| `VistaPacienteRegistrado.swift` | Narrow left panel (340 pt) with patient demographics — always used inside `ExpedientePacienteView` |
+| `HistorialJornadaView.swift` | Patient list filtered by the active jornada's municipality plus any patient attended today; patients grouped by registration date with date dividers ("Hoy", "Ayer", or formatted); tapping a patient closes the sidebar and opens `ExpedientePacienteView` |
+| `VistaPacienteRegistrado.swift` | Narrow left panel (340 pt) with patient demographics including fecha de nacimiento — always used inside `ExpedientePacienteView` |
 | `ExpedientePacienteView.swift` | Full two-panel expediente: `VistaPacienteRegistrado` left + tabbed right panel |
-| `NuevaConsultaView.swift` | Follow-up consultation form; all four types include "Medicamentos recetados" section with nombre + cantidad + unidad picker + duración |
-| `PersonalView.swift` | Split view: list + `PerfilPersonalView`; `FormularioPersonalView` sheet with CURP auto-generation |
-| `ConfigurarJornadaView.swift` | Full-screen jornada setup: AMM municipality, services toggle, personal checklist; on save downloads patients for that municipality from the server if online |
-| `StatisticsDashboardView.swift` | Real SwiftData queries — no mock data |
+| `NuevaConsultaView.swift` | Follow-up consultation form; all four types include "Medicamentos recetados" section; dental includes diagnosis autocomplete and "Ver consentimiento informado" button |
+| `PersonalView.swift` | Split view: list + `PerfilPersonalView`; `FormularioPersonalView` sheet; selecting a doctor auto-closes the sidebar via `hideSidebar()` |
+| `ConfigurarJornadaView.swift` | Full-screen jornada setup: AMM municipality, services toggle, personal checklist with search bar; on save downloads patients for that municipality from the server if online |
+| `StatisticsDashboardView.swift` | Two-tab view: "Jornada actual" (dynamic hourly chart from jornada start to last patient, current jornada data only) and "Historial de la zona" (cumulative stats for the active municipality) |
 | `CaritasSyncVM.swift` | `@MainActor ObservableObject`; syncs all entities to FastAPI backend; injected as `@EnvironmentObject` |
+| `CampoAutocomplete.swift` | Reusable autocomplete text field; shows up to 5 filtered suggestions while focused; filters accent/case insensitive; excludes exact matches |
+| `ConsentimientoOdontoView.swift` | WKWebView sheet that loads `consentimiento_odonto.html` from the bundle, injects patient/doctor data via JavaScript `window.onload`, and offers PDF export via `WKWebView.createPDF` |
+
+### Consent forms
+
+`consentimiento_odonto.html` lives in `Reto/Reto/` and is bundled automatically. All fillable spans have `id` attributes: `f-nombre`, `f-nac-dia`, `f-nac-mes`, `f-nac-ano`, `f-medico`, `f-medico2`, `f-procedimiento`, `f-diagnostico`, `f-municipio`, `f-firma-dia`, `f-firma-mes`, `f-firma-ano`. `ConsentimientoOdontoView` appends a `<script>` block before `</head>` that fills each span's `textContent` via `window.onload`. Auto-filled fields: patient name, date of birth, doctor name, procedure (from `servicioDental`), diagnosis, municipality, and today's date. Fields left blank for the doctor to fill on paper: risks, prognosis, procedure description, postoperative recommendations.
 
 ### Wizard steps (`NuevoPacienteView.pasosDinamicos`)
 
 | Key | Title | Condition |
 |---|---|---|
 | `identificacion` | Identificación del paciente | Always — two options: "Primera visita" (new) or "Ya tiene expediente" (returning); returning path searches SwiftData by name/CURP with `similaridad()` |
-| `datos_personales` | Datos personales y residencia | Always — sexo is `Sexo?` (nil = not selected); duplicate detection runs live via `candidatoDuplicado` (score ≥ 70 shows orange banner with "Ver expediente →") |
+| `datos_personales` | Datos personales y residencia | Always — sexo is `Sexo?` (nil = not selected); duplicate detection runs live via `candidatoDuplicado`; includes estado de nacimiento picker and CURP auto-generation with separate 2-char homoclave field |
 | `consulta` | Motivo de consulta | Always — services picker filtered by `jornadaActiva.serviciosDisponibles`; auto-selects doctor if only one is available |
 | `signos_vitales` | Signos vitales | Only when `servicioSeleccionado == "Consulta general"`; frecuencia cardiaca auto-fills from pulso |
 | `recetas` | Receta médica | All services except "Entrega de medicamentos" |
@@ -75,20 +83,33 @@ Domain enums: `Sexo` (masculino / femenino / noDefinido) and `TipoConsulta` (con
 
 ### Duplicate patient detection (`NuevoPacienteView.candidatoDuplicado`)
 
-Runs live in `paso_datos_personales` once primer nombre + primer apellido have ≥ 2 chars each. Weighted score 0–100:
+Runs live in `paso_datos_personales` once primer nombre + primer apellido have ≥ 2 chars each. Uses **character frequency intersection** for fuzzy name matching — handles typos like "Jckson" vs "Jackson".
 
 | Field | Points |
 |---|---|
-| Primer nombre exact | 30 |
-| Primer nombre prefix | 15 |
-| Primer apellido exact | 30 |
-| Primer apellido prefix | 15 |
+| Primer nombre (frequency intersection) | up to 30 |
+| Primer apellido (frequency intersection) | up to 30 |
 | Fecha de nacimiento same day | 25 |
 | Fecha de nacimiento same year | 10 |
-| Segundo apellido exact | 10 |
+| Segundo apellido (frequency intersection) | up to 10 |
 | Municipio match | 5 |
 
-Score ≥ 70 → orange banner appears at top of paso 2 with patient name, age, municipio, score, and "Ver expediente →" button. Dismissable per candidate; resets on `reiniciarFormulario()`.
+`maxPosible` = 85 + (10 if segundo apellido available) + (5 if municipio known). `umbral` = `maxPosible * 70 / 100`. Score returned is normalized to 0–100 percentage. Score ≥ threshold → orange banner shows patient name, age, municipio, score, matched fields ("Similitud en: Nombre · Primer apellido · ..."), and "Ver expediente →" button.
+
+**Crash fix note:** `bannerDuplicado` sets `pasoActual = 0` synchronously before `tipoPaciente = "regresa"` — do NOT wrap in `withAnimation` or the array index will be out of bounds.
+
+### caritasId
+
+Internal patient identifier for patients without an official CURP. Format: `[2-letter name][2-letter middle or XX][YYMMDD][3-letter state][M/F/X]`. Uses `estadoNacimiento` (birth state, immutable) — **not** `municipio` (residence, can change). Defined in `CaritasIdGenerator.swift`.
+
+### CURP auto-generation
+
+Both `NuevoPacienteView` (patients) and `FormularioPersonalView` (staff) auto-generate the first 16 chars of the CURP using the RENAPO algorithm. The UI splits into: greyed 16-char base display + small editable homoclave `TextField` (2 chars, letters and numbers allowed). Full CURP = base + homoclave when homoclave.count == 2.
+
+For patients: CURP is optional (stored in `curpPaciente`).
+For staff: CURP is mandatory (`puedeGuardar` requires `homoclavePersonal.count == 2` AND `sexoElegido == true`). A `Link` to `https://www.gob.mx/curp/` appears below the homoclave field while incomplete.
+
+Sexo in staff forms: **Femenino / Masculino / Prefiero no decir** — none pre-selected on new forms (`sexoElegido` flag distinguishes "not chosen yet" from "explicitly chose noDefinido"). CURP sex char: H / M / X respectively. Profile displays "Prefiero no decir" (not the raw enum value "no binario").
 
 ### Recetas data flow
 
@@ -119,7 +140,7 @@ Two-panel layout: left panel (`VistaPacienteRegistrado`, 340 pt fixed width) + r
 ### Patient filtering by jornada
 
 - **Dashboard counts and "últimos pacientes":** filtered to patients who have a consulta linked to `jornadaActiva` (by `$0.jornada?.idJornada == jornada.idJornada`)
-- **Historial list:** shows patients where `paciente.municipio == jornadaActiva.locacion.municipio` (pre-loaded from server) **OR** patients with at least one consulta in the active jornada (registered during the brigade, may live in another municipality)
+- **Historial list:** shows patients where `paciente.municipio == jornadaActiva.locacion.municipio` (pre-loaded from server) **OR** patients with at least one consulta in the active jornada. Grouped by `fechaRegistro` day with `────── Hoy ──────` style dividers.
 - **Fallback:** if no active jornada, shows all patients
 
 ### Patient pre-loading (offline support)
@@ -166,14 +187,14 @@ Sync order in `sincronizar()`:
 
 ### Data normalization (`StringNormalizacion.swift`)
 
-All data is normalized at save time via `String` extensions. Always pre-compute normalized values as `let` constants before passing to SwiftData initializers — calling these properties inline inside an `@Model` init can confuse Swift's `@dynamicMemberLookup` type inference.
+All data is normalized at save time via `String` extensions. **All helpers strip diacritics** (`.folding(options: .diacriticInsensitive, locale: .current)`). Always pre-compute normalized values as `let` constants before passing to SwiftData initializers.
 
 | Helper | Rule | Example |
 |---|---|---|
 | `.limpio` | Trim + collapse internal spaces | `"  Juan  "` → `"Juan"` |
-| `.nombrePropio` | Title Case, respects Spanish prepositions (de/del/la/las/los/y/e/el) | `"JUAN DE LA ROSA"` → `"Juan de la Rosa"` |
-| `.codigoNormalizado` | Uppercase + trim (CURP, matrícula) | `"vagr930209hnllmf23"` → `"VAGR930209HNLLMF23"` |
-| `.textoLibre` | First letter uppercase only (notes, motivo, diagnóstico) | `"DOLOR de cabeza"` → `"Dolor de cabeza"` |
+| `.nombrePropio` | Title Case, respects Spanish prepositions, strips diacritics | `"GARCÍA"` → `"Garcia"` |
+| `.codigoNormalizado` | Uppercase + trim + strip diacritics | `"vagr930209hnllmf23"` → `"VAGR930209HNLLMF23"` |
+| `.textoLibre` | First letter uppercase only, strips diacritics | `"DOLOR de cabeza"` → `"Dolor de cabeza"` |
 
 ### Design system (`Colores.swift`)
 
@@ -191,7 +212,7 @@ Never use raw hex values in views — always use these tokens.
 
 `ContentView` exposes two environment keys:
 - `toggleSidebar` — toggles sidebar open/closed (used by hamburger buttons in each view)
-- `hideSidebar` — always collapses to `.detailOnly` (called when opening a patient expediente from Dashboard or Historial so the full two-panel layout has room)
+- `hideSidebar` — always collapses to `.detailOnly` (called when opening a patient expediente from Dashboard or Historial, and when selecting a doctor in `PersonalView`)
 
 ### Doctor picker behavior
 
@@ -205,12 +226,17 @@ Both `NuevoPacienteView` (paso consulta) and `NuevaConsultaView`:
 
 Captured as two fields (sistólica / diastólica), stored as `"120/80"` in `Consulta.presionArterial`.
 
-### CURP auto-generation
+### Diagnosis autocomplete
 
-`PersonalView.FormularioPersonalView` computes CURP using RENAPO algorithm. First 16 chars accurate; homoclave defaults to `"00"`. Field is editable.
+`CampoAutocomplete` is used in `NuevaConsultaView` for the diagnosis field. `diagnosticosPrevios` is filtered by `tipoConsulta` and sorted by frequency — dentists see only dental diagnoses, general doctors see general ones, etc. Shows up to 5 suggestions while focused.
+
+### PerfilPersonalView stats
+
+Three stat blocks: **Consultas** · **Jornadas** · **Tiempo activo**. Tiempo activo is computed from `fechaCreacionPersonal` to today: shows "X año(s)", "X mes(es)", "X día(s)", or "Hoy". Cédula is always shown in Datos personales (displays "Sin registro" when `matricula` is nil).
 
 ## Known pending work
 
 - Feature: condiciones crónicas — model has `[String]` but no UI to add them in the wizard or edit them in the expediente
-- Feature: search/filter bar in `HistorialJornadaView`
+- Feature: search/filter bar in `HistorialJornadaView` (date dividers are in place; a text search is still missing)
 - Feature: CURP scan → auto-fill fecha de nacimiento and sexo
+- Feature: integrate remaining consent forms (optometría, consulta general) when provided

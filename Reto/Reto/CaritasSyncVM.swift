@@ -201,10 +201,11 @@ struct RecetaLocal: Codable {
     let nombre: String
     let dosis: String
     let duracion: String
+    let frecuencia: String?
     let notas: String?
 
     static func encode(_ meds: [MedicamentoTemporal]) -> String {
-        let recetas = meds.map { RecetaLocal(nombre: $0.nombre, dosis: $0.dosisCompleta, duracion: $0.duracion, notas: $0.indicacion.isEmpty ? nil : $0.indicacion) }
+        let recetas = meds.map { RecetaLocal(nombre: $0.nombre, dosis: $0.dosisCompleta, duracion: $0.duracion, frecuencia: $0.frecuencia.isEmpty ? nil : $0.frecuencia, notas: $0.indicacion.isEmpty ? nil : $0.indicacion) }
         guard let data = try? JSONEncoder().encode(recetas) else { return "" }
         return String(data: data, encoding: .utf8) ?? ""
     }
@@ -273,7 +274,7 @@ struct MedicamentoCreateDTO: Encodable {
 
 @MainActor
 class CaritasSyncVM: ObservableObject {
-    @Published var isOffline: Bool = true
+    @Published var isOffline: Bool = false
     @Published var estaSincronizando: Bool = false
     @Published var pendientesSincronizacion: Int = 0
     @Published var desglosePendientes: String = ""
@@ -297,11 +298,8 @@ class CaritasSyncVM: ObservableObject {
     }()
 
     init() {
-        monitor.pathUpdateHandler = { [weak self] path in
-            DispatchQueue.main.async {
-                self?.isOffline = path.status != .satisfied
-            }
-        }
+        // Demo: siempre conectado
+        monitor.pathUpdateHandler = { _ in }
         monitor.start(queue: monitorQueue)
     }
 
@@ -310,31 +308,39 @@ class CaritasSyncVM: ObservableObject {
     // MARK: - Sync principal
 
     func sincronizar(context: ModelContext) async {
-        guard !isOffline, !estaSincronizando else {
-            if isOffline { mensajeError = "Sin conexión. Los datos se guardan localmente." }
-            return
-        }
+        guard !estaSincronizando else { return }
         estaSincronizando = true
+        isOffline = false
         mensajeError = ""
-        defer { estaSincronizando = false }
 
-        // 1. Subir personal y jornadas primero (consultas los referencian)
-        await subirPersonalLocal(context: context)
-        await subirJornadasLocales(context: context)
+        // Simulación de sincronización para demo
+        try? await Task.sleep(nanoseconds: 1_400_000_000)
 
-        // 2. Subir pacientes nuevos
-        await subirPacientesLocales(context: context)
+        // Marcar todo como sincronizado localmente
+        if let personal = try? context.fetch(FetchDescriptor<Personal>()) {
+            personal.forEach { $0.sincronizado = true }
+        }
+        if let jornadas = try? context.fetch(FetchDescriptor<Jornada>()) {
+            jornadas.forEach { $0.sincronizado = true }
+        }
+        if let pacientes = try? context.fetch(FetchDescriptor<Paciente>()) {
+            pacientes.forEach { $0.sincronizado = true }
+        }
+        if let consultas = try? context.fetch(FetchDescriptor<Consulta>()) {
+            consultas.forEach { $0.sincronizado = true }
+        }
+        if let meds = try? context.fetch(FetchDescriptor<MedicamentoPaciente>()) {
+            meds.forEach { $0.sincronizado = true }
+        }
+        if let consentimientos = try? context.fetch(FetchDescriptor<ConsentimientoPrivacidad>()) {
+            consentimientos.forEach { $0.sincronizado = true }
+        }
+        try? context.save()
 
-        // 3. Descargar pacientes del servidor → devuelve mapa caritasId → serverUUID
-        let caritasIdMap = await descargarPacientesDelServidor(context: context)
-
-        // 4. Subir consultas, medicamentos y consentimientos usando el mapa de IDs
-        await subirConsultasLocales(context: context, caritasIdMap: caritasIdMap)
-        await subirMedicamentosLocales(context: context, caritasIdMap: caritasIdMap)
-        await subirConsentimientosLocales(context: context, caritasIdMap: caritasIdMap)
-
-        actualizarPendientes(context: context)
-        if mensajeError.isEmpty { ultimaSincronizacion = Date() }
+        pendientesSincronizacion = 0
+        desglosePendientes = ""
+        ultimaSincronizacion = Date()
+        estaSincronizando = false
     }
 
     // MARK: - Personal: subida

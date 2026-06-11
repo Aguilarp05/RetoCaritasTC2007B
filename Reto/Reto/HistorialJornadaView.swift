@@ -21,6 +21,24 @@ struct HistorialJornadaView: View {
         }
     }
 
+    // Pacientes agrupados por día de registro, más reciente primero
+    private var pacientesPorFecha: [(fecha: Date, pacientes: [Paciente])] {
+        let cal = Calendar.current
+        let grupos = Dictionary(grouping: pacientes) { p in
+            cal.startOfDay(for: p.fechaRegistro)
+        }
+        return grupos
+            .sorted { $0.key > $1.key }
+            .map { (fecha: $0.key, pacientes: $0.value.sorted { $0.fechaRegistro > $1.fechaRegistro }) }
+    }
+
+    private func etiquetaFecha(_ fecha: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(fecha)     { return "Hoy" }
+        if cal.isDateInYesterday(fecha) { return "Ayer" }
+        return fecha.formatted(.dateTime.day().month(.wide).year().locale(Locale(identifier: "es_MX")))
+    }
+
     var body: some View {
         Group {
             if let paciente = pacienteSeleccionado {
@@ -83,17 +101,38 @@ struct HistorialJornadaView: View {
             } else {
                 ScrollView {
                     VStack(spacing: 0) {
-                        ForEach(pacientes) { paciente in
-                            Button {
-                                hideSidebar()
-                                pacienteSeleccionado = paciente
-                            } label: {
-                                FilaPacienteHistorial(paciente: paciente)
-                            }
-                            .buttonStyle(.plain)
+                        ForEach(pacientesPorFecha, id: \.fecha) { grupo in
 
-                            Divider()
-                                .padding(.leading, 94)
+                            // Divisor de fecha
+                            HStack(spacing: 10) {
+                                Rectangle()
+                                    .fill(Color.caritasGris.opacity(0.2))
+                                    .frame(height: 1)
+                                Text(etiquetaFecha(grupo.fecha))
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(Color.caritasGris)
+                                    .fixedSize()
+                                Rectangle()
+                                    .fill(Color.caritasGris.opacity(0.2))
+                                    .frame(height: 1)
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 10)
+                            .background(Color(.systemBackground))
+
+                            ForEach(grupo.pacientes) { paciente in
+                                Button {
+                                    hideSidebar()
+                                    pacienteSeleccionado = paciente
+                                } label: {
+                                    FilaPacienteHistorial(paciente: paciente)
+                                }
+                                .buttonStyle(.plain)
+
+                                Divider()
+                                    .padding(.leading, 94)
+                            }
                         }
                     }
                 }

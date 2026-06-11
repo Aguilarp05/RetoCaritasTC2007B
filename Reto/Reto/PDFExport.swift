@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import PDFKit
 
 // MARK: - Share sheet nativa
 
@@ -44,7 +45,7 @@ struct PDFHeaderView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center) {
-                Image("Logotipo Cáritas de Monterrey, A.B.P.")
+                Image("LogoCaritas")
                     .resizable()
                     .scaledToFit()
                     .frame(height: 40)
@@ -104,4 +105,19 @@ struct PDFSectionView<Content: View>: View {
                 .frame(height: 0.5)
         }
     }
+}
+
+// MARK: - Visor de PDF (usado en aviso de privacidad y consentimientos)
+
+struct PDFKitView: UIViewRepresentable {
+    let url: URL
+    func makeUIView(context: Context) -> PDFView {
+        let pdfView = PDFView()
+        pdfView.document = PDFDocument(url: url)
+        pdfView.autoScales = true
+        pdfView.displayMode = .singlePageContinuous
+        pdfView.displayDirection = .vertical
+        return pdfView
+    }
+    func updateUIView(_ uiView: PDFView, context: Context) {}
 }

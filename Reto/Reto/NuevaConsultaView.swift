@@ -7,6 +7,7 @@ struct MedicamentoTemporal: Identifiable {
     var dosisAmount: String
     var dosisUnidad: String
     var duracion: String
+    var frecuencia: String
     var indicacion: String
     var fechaInicio: Date
 
@@ -19,6 +20,16 @@ struct NuevaConsultaView: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Personal.nombrePersonal) private var todoElPersonal: [Personal]
     @Query(sort: \Jornada.fecha, order: .reverse) private var jornadas: [Jornada]
+    @Query private var todasLasConsultas: [Consulta]
+
+    private var diagnosticosPrevios: [String] {
+        let filtradas = todasLasConsultas
+            .filter { $0.tipoConsulta == tipoConsulta && !$0.diagnostico.isEmpty }
+            .map { $0.diagnostico }
+        var frecuencia: [String: Int] = [:]
+        filtradas.forEach { frecuencia[$0, default: 0] += 1 }
+        return frecuencia.sorted { $0.value > $1.value }.map { $0.key }
+    }
 
     private var jornadaActiva: Jornada? {
         jornadas.first { Calendar.current.isDateInToday($0.fecha) && $0.horaFin == nil }
@@ -38,6 +49,7 @@ struct NuevaConsultaView: View {
     @State private var medicamentoDosisAmount = ""
     @State private var medicamentoDosisUnidad = "mg"
     @State private var medicamentoDuracion = ""
+    @State private var medicamentoFrecuencia = ""
     @State private var medicamentoIndicacion = ""
     @State private var medicamentoFechaInicio = Date()
     @State private var medicamentosIndicados: [MedicamentoTemporal] = []
@@ -57,6 +69,8 @@ struct NuevaConsultaView: View {
 
     @State private var diagnosticoOptometria = ""
     @State private var servicioDental = ""
+    @State private var mostrarConsentimientoOdonto = false
+    @State private var consentimientoPDFPath: String?
 
     @State private var tipoConsulta: TipoConsulta = .consultaGeneral
 
@@ -214,6 +228,17 @@ struct NuevaConsultaView: View {
                         .disabled(!puedeGuardar)
                 }
             }
+        }
+        .sheet(isPresented: $mostrarConsentimientoOdonto) {
+            ConsentimientoOdontoView(
+                nombrePaciente:    paciente.nombreCompleto,
+                fechaNacimiento:   paciente.fechaNacimiento,
+                medico:            medico,
+                municipio:         jornadaActiva?.locacion?.municipio ?? lugar,
+                diagnosticoInicial: diagnostico,
+                motivoInicial:     servicioDental,
+                onPDFGuardado:     { ruta in consentimientoPDFPath = ruta }
+            )
         }
     }
 
@@ -390,7 +415,7 @@ struct NuevaConsultaView: View {
             seccionHeader("Registro del paciente")
             VStack(spacing: 12) {
                 campo("Motivo", texto: $motivo, multilinea: true)
-                campo("Diagnóstico", texto: $diagnostico, multilinea: true)
+                CampoAutocomplete(titulo: "Diagnóstico", texto: $diagnostico, sugerencias: diagnosticosPrevios)
                 campo("Notas médicas", texto: $notasMedico, multilinea: true)
             }
             .padding(.horizontal, 20)
@@ -484,7 +509,7 @@ struct NuevaConsultaView: View {
                 campoLectura("Nombre", valor: paciente.nombreCompleto)
                 campoLectura("Sexo",   valor: paciente.sexoPaciente.rawValue.capitalized)
                 campoLectura("Edad",   valor: "\(paciente.edad) años")
-                campo("Diagnóstico", texto: $diagnosticoOptometria, multilinea: true)
+                CampoAutocomplete(titulo: "Diagnóstico", texto: $diagnosticoOptometria, sugerencias: diagnosticosPrevios)
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
@@ -503,7 +528,27 @@ struct NuevaConsultaView: View {
                 campoLectura("Edad",   valor: "\(paciente.edad) años")
                 campoLectura("Sexo",   valor: paciente.sexoPaciente.rawValue.capitalized)
                 campoLectura("CURP",   valor: paciente.curpPaciente ?? "Sin CURP")
-                campo("Servicio recibido", texto: $servicioDental, multilinea: true)
+                campo("Procedimiento / servicio recibido", texto: $servicioDental, multilinea: true)
+                CampoAutocomplete(titulo: "Diagnóstico", texto: $diagnostico, sugerencias: diagnosticosPrevios)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 16)
+
+            Button {
+                mostrarConsentimientoOdonto = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.text.fill")
+                        .font(.subheadline)
+                    Text("Ver consentimiento informado")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                .foregroundStyle(Color.caritasPrimario)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color.caritasSuave)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
@@ -530,7 +575,7 @@ struct NuevaConsultaView: View {
                                     .font(.subheadline)
                                     .fontWeight(.medium)
                                     .foregroundStyle(Color.caritasAzul)
-                                let detalle = [med.dosisCompleta, med.duracion].filter { !$0.isEmpty }.joined(separator: " · ")
+                                let detalle = [med.dosisCompleta, med.frecuencia, med.duracion].filter { !$0.isEmpty }.joined(separator: " · ")
                                 if !detalle.isEmpty {
                                     Text(detalle)
                                         .font(.caption)
@@ -584,6 +629,7 @@ struct NuevaConsultaView: View {
             }
 
             campo("Duración", texto: $medicamentoDuracion)
+            campo("Frecuencia", placeholder: "Cada 8 hrs, una vez al día...", texto: $medicamentoFrecuencia)
             campo("Indicación (opcional)", placeholder: "Opcional", texto: $medicamentoIndicacion)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -616,6 +662,7 @@ struct NuevaConsultaView: View {
             dosisAmount: medicamentoDosisAmount,
             dosisUnidad: medicamentoDosisUnidad,
             duracion: medicamentoDuracion,
+            frecuencia: medicamentoFrecuencia,
             indicacion: medicamentoIndicacion,
             fechaInicio: medicamentoFechaInicio
         ))
@@ -623,6 +670,7 @@ struct NuevaConsultaView: View {
         medicamentoDosisAmount = ""
         medicamentoDosisUnidad = "mg"
         medicamentoDuracion = ""
+        medicamentoFrecuencia = ""
         medicamentoIndicacion = ""
         medicamentoFechaInicio = Date()
     }
@@ -658,6 +706,7 @@ struct NuevaConsultaView: View {
             cantidadMedicamentos:  tipoConsulta == .entregaMedicamentos ? Int(cantidadMedicamento) : nil
         )
         nuevaConsulta.recetasJSON = RecetaLocal.encode(medicamentosIndicados)
+        nuevaConsulta.consentimientoDentalPath = consentimientoPDFPath
         paciente.consultas.append(nuevaConsulta)
         nuevaConsulta.jornada = jornadaActiva
         nuevaConsulta.personalMedico = jornadaActiva?.personal.first { $0.nombreCompleto == medico }

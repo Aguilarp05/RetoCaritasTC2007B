@@ -51,6 +51,8 @@ class Consulta {
     var cantidadMedicamentos: Int?
 
     var recetasJSON: String = ""
+    var consentimientoDentalPath: String?
+    var referenciaPath: String?
 
     var jornada: Jornada?
     var personalMedico: Personal?

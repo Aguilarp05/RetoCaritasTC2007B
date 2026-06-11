@@ -9,11 +9,11 @@ extension String {
             .joined(separator: " ")
     }
 
-    /// Nombre propio: primera letra de cada palabra en mayúscula, resto minúscula.
-    /// "JUAN   DE LA ROSA " → "Juan de la Rosa"
+    /// Nombre propio: primera letra de cada palabra en mayúscula, resto minúscula, sin tildes.
     var nombrePropio: String {
         let preposiciones: Set<String> = ["de", "del", "la", "las", "los", "y", "e", "el"]
         return limpio
+            .folding(options: .diacriticInsensitive, locale: .current)
             .lowercased()
             .components(separatedBy: " ")
             .enumerated()
@@ -25,14 +25,16 @@ extension String {
             .joined(separator: " ")
     }
 
-    /// CURP / clave: todo mayúsculas, sin espacios.
+    /// CURP / clave: todo mayúsculas, sin espacios, sin tildes.
     var codigoNormalizado: String {
-        limpio.uppercased()
+        limpio
+            .folding(options: .diacriticInsensitive, locale: .current)
+            .uppercased()
     }
 
-    /// Texto libre (diagnóstico, motivo, notas): solo trim + primera letra mayúscula.
+    /// Texto libre (diagnóstico, motivo, notas): solo trim + primera letra mayúscula, sin tildes.
     var textoLibre: String {
-        let t = limpio
+        let t = limpio.folding(options: .diacriticInsensitive, locale: .current)
         guard let primera = t.first else { return t }
         return primera.uppercased() + t.dropFirst()
     }

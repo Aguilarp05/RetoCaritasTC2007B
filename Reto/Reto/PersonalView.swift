@@ -5,6 +5,7 @@ import SwiftData
 
 struct PersonalView: View {
     @Environment(\.toggleSidebar)  private var toggleSidebar
+    @Environment(\.hideSidebar)    private var hideSidebar
     @Environment(\.modelContext)   private var modelContext
     @Query(sort: \Personal.nombrePersonal) private var todoElPersonal: [Personal]
 
@@ -109,7 +110,7 @@ struct PersonalView: View {
 
     private func filaPersonal(_ persona: Personal) -> some View {
         let sel = seleccionado?.idPersonal == persona.idPersonal
-        return Button { seleccionado = persona } label: {
+        return Button { hideSidebar(); seleccionado = persona } label: {
             HStack(spacing: 14) {
                 avatarCirculo(persona, size: 48)
 
@@ -236,11 +237,9 @@ struct PerfilPersonalView: View {
                 VStack(spacing: 0) {
                     filaDato("CURP",         valor: personal.curpPersonal, mono: true)
                     Divider().padding(.leading, 24)
-                    filaDato("Sexo",         valor: personal.sexoPersonal.rawValue.capitalized)
-                    if let mat = personal.matricula {
-                        Divider().padding(.leading, 24)
-                        filaDato("Cédula / Matrícula", valor: mat)
-                    }
+                    filaDato("Sexo", valor: personal.sexoPersonal == .noDefinido ? "Prefiero no decir" : personal.sexoPersonal.rawValue.capitalized)
+                    Divider().padding(.leading, 24)
+                    filaDato("Cédula / Matrícula", valor: personal.matricula ?? "Sin registro")
                     Divider().padding(.leading, 24)
                     filaDato("Alta en sistema", valor: personal.fechaCreacionPersonal.formatted(date: .abbreviated, time: .omitted))
                 }
@@ -278,11 +277,31 @@ struct PerfilPersonalView: View {
                     statBloque(titulo: "Consultas", valor: "\(personal.consultas.count)")
                     Divider()
                     statBloque(titulo: "Jornadas", valor: "\(personal.jornadas.count)")
+                    Divider()
+                    statBloque(titulo: "Tiempo activo", valor: tiempoActivo)
                 }
                 .padding(.bottom, 8)
             }
         }
         .background(Color(.systemGroupedBackground))
+    }
+
+    private var tiempoActivo: String {
+        let comps = Calendar.current.dateComponents([.year, .month, .day],
+                                                    from: personal.fechaCreacionPersonal,
+                                                    to: Date())
+        let y = comps.year ?? 0
+        let m = comps.month ?? 0
+        let d = comps.day ?? 0
+        if y >= 1 {
+            return m > 0 ? "\(y) a. \(m) m." : "\(y) año\(y == 1 ? "" : "s")"
+        } else if m >= 1 {
+            return "\(m) mes\(m == 1 ? "" : "es")"
+        } else if d >= 1 {
+            return "\(d) día\(d == 1 ? "" : "s")"
+        } else {
+            return "Hoy"
+        }
     }
 
     private func seccionHeader(_ titulo: String) -> some View {
@@ -357,8 +376,10 @@ struct FormularioPersonalView: View {
     @State private var apellidos    = ""
     @State private var fechaNacimiento: Date = Calendar.current.date(byAdding: .year, value: -30, to: Date()) ?? Date()
     @State private var sexo         = Sexo.noDefinido
+    @State private var sexoElegido  = false
     @State private var estadoNacimiento = "Nuevo León"
     @State private var curp         = ""
+    @State private var homoclavePersonal = ""
     @State private var areasDeServicio: Set<String> = []
     @State private var matricula    = ""
     @State private var esActivo     = true
@@ -387,8 +408,8 @@ struct FormularioPersonalView: View {
     private var puedeGuardar: Bool {
         !nombre.trimmingCharacters(in: .whitespaces).isEmpty &&
         !apellidos.trimmingCharacters(in: .whitespaces).isEmpty &&
-        curp.trimmingCharacters(in: .whitespaces).count == 18 &&
-        sexo != .noDefinido
+        homoclavePersonal.count == 2 &&
+        sexoElegido
     }
 
     var body: some View {
@@ -416,6 +437,7 @@ struct FormularioPersonalView: View {
                         HStack(spacing: 10) {
                             botonSexo("Femenino", valor: .femenino)
                             botonSexo("Masculino", valor: .masculino)
+                            botonSexo("Prefiero no decir", valor: .noDefinido)
                         }
                     }
                     .onChange(of: sexo) { _, _ in if !esEdicion { actualizarCURP() } }
@@ -441,18 +463,48 @@ struct FormularioPersonalView: View {
                                     .font(.caption).foregroundStyle(Color.caritasPrimario)
                             }
                         }
-                        TextField("CURP", text: $curp)
-                            .padding(12).background(Color(.systemGray6))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                            .font(.subheadline.monospaced())
-                            .textInputAutocapitalization(.characters)
-                            .autocorrectionDisabled()
-                            .focused($foco, equals: .curp)
-                            .submitLabel(.next).onSubmit { foco = .matricula }
-                            .onChange(of: curp) { _, nuevo in curp = String(nuevo.uppercased().prefix(18)) }
-                        if !curp.isEmpty && curp.count != 18 {
-                            Text("\(curp.count)/18 caracteres")
-                                .font(.caption2).foregroundStyle(Color.caritasAcento)
+                        HStack(spacing: 6) {
+                            Text(String(curp.prefix(16)))
+                                .font(.system(.subheadline, design: .monospaced))
+                                .foregroundStyle(Color.caritasGris)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color(.systemGray5))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            TextField("A5", text: $homoclavePersonal)
+                                .font(.system(.subheadline, design: .monospaced))
+                                .multilineTextAlignment(.center)
+                                .textInputAutocapitalization(.characters)
+                                .autocorrectionDisabled()
+                                .focused($foco, equals: .curp)
+                                .submitLabel(.next).onSubmit { foco = .matricula }
+                                .frame(width: 52)
+                                .padding(.vertical, 12)
+                                .background(Color(.systemGray6))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .onChange(of: homoclavePersonal) { _, nuevo in
+                                    homoclavePersonal = String(nuevo.uppercased()
+                                        .filter { $0.isLetter || $0.isNumber }
+                                        .prefix(2))
+                                    actualizarCURP()
+                                }
+                        }
+                        Text(homoclavePersonal.count == 2 ? "CURP completa: \(curp)" : "Ingresa la homoclave (2 caracteres) para completar la CURP")
+                            .font(.caption2)
+                            .foregroundStyle(homoclavePersonal.count == 2 ? Color.caritasPrimario : Color.caritasAcento)
+
+                        if homoclavePersonal.count < 2 {
+                            Link(destination: URL(string: "https://www.gob.mx/curp/")!) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.up.right.square")
+                                        .font(.caption2)
+                                    Text("¿No sabes la homoclave? Consúltala en gob.mx/curp")
+                                        .font(.caption2)
+                                        .underline()
+                                }
+                                .foregroundStyle(Color.caritasPrimario.opacity(0.8))
+                            }
                         }
                     }
 
@@ -538,8 +590,8 @@ struct FormularioPersonalView: View {
     }
 
     private func botonSexo(_ etiqueta: String, valor: Sexo) -> some View {
-        let sel = sexo == valor
-        return Button { sexo = valor } label: {
+        let sel = sexoElegido && sexo == valor
+        return Button { sexo = valor; sexoElegido = true } label: {
             Text(etiqueta).font(.subheadline).frame(maxWidth: .infinity).padding(.vertical, 12)
                 .background(sel ? Color.caritasSuave : Color(.systemGray6))
                 .foregroundStyle(sel ? Color.caritasPrimario : Color.caritasGris)
@@ -585,12 +637,12 @@ struct FormularioPersonalView: View {
         let yy = String(format: "%02d", cal.component(.year,  from: fechaNacimiento) % 100)
         let mm = String(format: "%02d", cal.component(.month, from: fechaNacimiento))
         let dd = String(format: "%02d", cal.component(.day,   from: fechaNacimiento))
-        let sx = (sexo == .masculino) ? "H" : "M"
+        let sx = sexo == .masculino ? "H" : (sexo == .femenino ? "M" : "X")
         let st = estadosCodes.first(where: { $0.nombre == estadoNacimiento })?.codigo ?? "NL"
         let c1 = pa.dropFirst().first(where: { String($0).rangeOfCharacter(from: consonants) != nil }).map(String.init) ?? "X"
         let c2 = sa.dropFirst().first(where: { String($0).rangeOfCharacter(from: consonants) != nil }).map(String.init) ?? "X"
         let c3 = nm.dropFirst().first(where: { String($0).rangeOfCharacter(from: consonants) != nil }).map(String.init) ?? "X"
-        let hcv = curp.count == 18 ? String(curp.suffix(2)) : "00"
+        let hcv = homoclavePersonal.count == 2 ? homoclavePersonal : "00"
 
         return "\(l1)\(l2)\(l3)\(l4)\(yy)\(mm)\(dd)\(sx)\(st)\(c1)\(c2)\(c3)\(hcv)"
     }
@@ -602,7 +654,9 @@ struct FormularioPersonalView: View {
         nombre      = p.nombrePersonal
         apellidos   = p.apellidosPersonal
         curp        = p.curpPersonal
+        homoclavePersonal = p.curpPersonal.count == 18 ? String(p.curpPersonal.suffix(2)) : ""
         sexo        = p.sexoPersonal
+        sexoElegido = true
         areasDeServicio = Set(p.areasDeServicio)
         matricula   = p.matricula ?? ""
         esActivo    = p.esActivo
