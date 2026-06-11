@@ -64,3 +64,5 @@ fastlane/test_output
 
 # Backend local (no subir al repo)
 main.py
+
+claude.md
