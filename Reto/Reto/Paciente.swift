@@ -45,9 +45,6 @@ class Paciente {
     }
     var condicionesCronicas: [String]
 
-    var fechaProximoSeguimiento: Date?
-    var motivoProximoSeguimiento: String?
-
     // Additional DB fields
     var domicilio: String?
     var colonia: String?
@@ -90,8 +87,6 @@ class Paciente {
     estado : String? = nil ,
     municipio: String? = nil,
     condicionesCronicas : [String],
-    fechaProximoSeguimiento: Date? = nil,
-    motivoProximoSeguimiento: String? = nil,
     domicilio: String? = nil,
     colonia: String? = nil,
     numIntegrantesFamilia: Int? = nil,
@@ -118,8 +113,6 @@ class Paciente {
         self.municipio = municipio
         self.estado = estado
         self.condicionesCronicas = condicionesCronicas
-        self.fechaProximoSeguimiento = fechaProximoSeguimiento
-        self.motivoProximoSeguimiento = motivoProximoSeguimiento
         self.domicilio = domicilio
         self.colonia = colonia
         self.numIntegrantesFamilia = numIntegrantesFamilia

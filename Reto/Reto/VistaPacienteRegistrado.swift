@@ -18,11 +18,10 @@ struct EventoLineaTiempo: Identifiable {
 }
 
 enum TipoEventoLineaTiempo {
-    case seguimiento, tratamiento, alerta, nota, inicio
+    case tratamiento, alerta, nota, inicio
 
     var color: Color {
         switch self {
-        case .seguimiento: return Color.caritasPrimario
         case .tratamiento: return .green
         case .alerta:      return Color.caritasAcento
         case .nota:        return Color.caritasGris
@@ -909,9 +908,7 @@ struct EntradaConsultaView: View {
             telefono: "618 234 5678",
             estado: "Durango",
             municipio: "El Mezquital",
-            condicionesCronicas: ["Diabetes tipo 2", "Nutrición"],
-            fechaProximoSeguimiento: Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 10)),
-            motivoProximoSeguimiento: "Control glucosa"
+            condicionesCronicas: ["Diabetes tipo 2", "Nutrición"]
         )
     )
 }
@@ -1153,9 +1150,7 @@ struct ExpedientePDFContentView: View {
                 telefono: "618 234 5678",
                 estado: "Durango",
                 municipio: "El Mezquital",
-                condicionesCronicas: ["Diabetes tipo 2", "Nutrición"],
-                fechaProximoSeguimiento: Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 10)),
-                motivoProximoSeguimiento: "Control glucosa"
+                condicionesCronicas: ["Diabetes tipo 2", "Nutrición"]
             )
         )
     }

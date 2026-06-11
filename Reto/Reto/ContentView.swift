@@ -1,9 +1,13 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - Sidebar toggle environment key
+// MARK: - Sidebar environment keys
 
 private struct SidebarToggleKey: EnvironmentKey {
+    static let defaultValue: () -> Void = {}
+}
+
+private struct SidebarHideKey: EnvironmentKey {
     static let defaultValue: () -> Void = {}
 }
 
@@ -11,6 +15,10 @@ extension EnvironmentValues {
     var toggleSidebar: () -> Void {
         get { self[SidebarToggleKey.self] }
         set { self[SidebarToggleKey.self] = newValue }
+    }
+    var hideSidebar: () -> Void {
+        get { self[SidebarHideKey.self] }
+        set { self[SidebarHideKey.self] = newValue }
     }
 }
 
@@ -47,9 +55,10 @@ struct ContentView: View {
             }
         }
         .environment(\.toggleSidebar, {
-            withAnimation {
-                columnVisibility = columnVisibility == .all ? .detailOnly : .all
-            }
+            withAnimation { columnVisibility = columnVisibility == .all ? .detailOnly : .all }
+        })
+        .environment(\.hideSidebar, {
+            withAnimation { columnVisibility = .detailOnly }
         })
         .fullScreenCover(isPresented: $mostrarConfigJornada) {
             ConfigurarJornadaView()

@@ -48,6 +48,7 @@ struct NuevoPacienteView: View {
     @State private var mostrarNuevaConsultaRegresa = false
     @State private var fechaBusqueda = Date()
     @State private var usarFechaBusqueda = false
+    @State private var idDuplicadoDescartado: UUID? = nil
 
     // Paso 1 — Identificación
     @State private var curp            = ""
@@ -377,7 +378,7 @@ struct NuevoPacienteView: View {
                 // Chip compacto del tipo seleccionado
                 HStack(spacing: 10) {
                     Image(systemName: "person.badge.clock").foregroundStyle(Color.caritasPrimario)
-                    Text("Visita de seguimiento")
+                    Text("Ya tiene expediente")
                         .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.caritasPrimario)
                     Spacer()
                     Button {
@@ -440,8 +441,8 @@ struct NuevoPacienteView: View {
                 }
 
                 tarjetaGrande(
-                    titulo: "Visita de seguimiento",
-                    subtitulo: "Ya cuenta con expediente previo en Cáritas",
+                    titulo: "Ya tiene expediente",
+                    subtitulo: "Paciente que ya ha sido atendido en Cáritas",
                     icono: "person.badge.clock",
                     color: Color.caritasAcento
                 ) {
@@ -523,6 +524,104 @@ struct NuevoPacienteView: View {
         let busq = nombreBusqueda.trimmingCharacters(in: .whitespaces)
         guard busq.count >= 2, let top = pacientesFiltrados.first else { return nil }
         return similaridad(top, busqueda: busq) >= 0.7 ? top : nil
+    }
+
+    // MARK: - Detección de duplicados (nuevo paciente)
+
+    // Retorna el paciente más similar al formulario en curso y su puntuación (0-100).
+    // Solo corre cuando ya hay nombre + apellido con al menos 2 caracteres.
+    private var candidatoDuplicado: (paciente: Paciente, score: Int)? {
+        let n1 = primerNombre.trimmingCharacters(in: .whitespaces)
+        let a1 = primerApellido.trimmingCharacters(in: .whitespaces)
+        guard n1.count >= 2, a1.count >= 2 else { return nil }
+
+        let clean: (String) -> String = {
+            $0.lowercased()
+              .folding(options: .diacriticInsensitive, locale: .current)
+              .trimmingCharacters(in: .whitespaces)
+        }
+        let cn1 = clean(n1), ca1 = clean(a1), ca2 = clean(segundoApellido)
+        let cal = Calendar.current
+        var mejor: (Paciente, Int)? = nil
+
+        for p in pacientes {
+            var score = 0
+
+            // Primer nombre — 30 pts exacto, 15 pts prefijo
+            let pn1 = clean(p.primerNombre)
+            if pn1 == cn1 { score += 30 }
+            else if pn1.hasPrefix(cn1) || cn1.hasPrefix(pn1) { score += 15 }
+
+            // Primer apellido — 30 pts exacto, 15 pts prefijo
+            let pa1 = clean(p.primerApellido)
+            if pa1 == ca1 { score += 30 }
+            else if pa1.hasPrefix(ca1) || ca1.hasPrefix(pa1) { score += 15 }
+
+            // Fecha de nacimiento — 25 pts mismo día, 10 pts mismo año
+            if cal.isDate(p.fechaNacimiento, inSameDayAs: fechaNacimiento) {
+                score += 25
+            } else if cal.component(.year, from: p.fechaNacimiento) ==
+                      cal.component(.year, from: fechaNacimiento) {
+                score += 10
+            }
+
+            // Segundo apellido — 10 pts exacto
+            if !ca2.isEmpty && clean(p.segundoApellido ?? "") == ca2 { score += 10 }
+
+            // Municipio — 5 pts
+            if !municipioSeleccionado.isEmpty,
+               let mun = p.municipio,
+               clean(mun) == clean(municipioSeleccionado) { score += 5 }
+
+            if score >= 70, mejor == nil || score > mejor!.1 { mejor = (p, score) }
+        }
+        return mejor.map { (paciente: $0.0, score: $0.1) }
+    }
+
+    @ViewBuilder
+    private var bannerDuplicado: some View {
+        if let (candidato, score) = candidatoDuplicado,
+           idDuplicadoDescartado != candidato.idPaciente {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Color.caritasAcento)
+                    .font(.subheadline)
+                    .padding(.top, 2)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("¿Este paciente ya tiene expediente?")
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundStyle(Color.caritasAzul)
+                    Text("\(candidato.nombreCompleto) · \(candidato.edad) años\(candidato.municipio.map { " · \($0)" } ?? "") · \(score)% similitud")
+                        .font(.caption).foregroundStyle(Color.caritasGris)
+                    Button {
+                        pacienteParaConsulta = candidato
+                        tipoPaciente = "regresa"
+                        withAnimation(.spring(response: 0.3)) { pasoActual = 0 }
+                    } label: {
+                        Text("Ver expediente →")
+                            .font(.caption).fontWeight(.semibold)
+                            .foregroundStyle(Color.caritasPrimario)
+                    }
+                    .padding(.top, 2)
+                }
+                Spacer()
+                Button {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        idDuplicadoDescartado = candidato.idPaciente
+                    }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption2).foregroundStyle(Color.caritasGris)
+                        .padding(4)
+                }
+            }
+            .padding(12)
+            .background(Color.caritasAcento.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.caritasAcento.opacity(0.35), lineWidth: 1))
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
     }
 
     private var listaResultadosBusqueda: some View {
@@ -623,6 +722,9 @@ struct NuevoPacienteView: View {
 
     var paso2: some View {
         VStack(alignment: .leading, spacing: 14) {
+
+            bannerDuplicado
+                .animation(.spring(response: 0.35), value: candidatoDuplicado?.paciente.idPaciente)
 
             campo("Primer nombre *",
                   text: $primerNombre,
@@ -831,6 +933,18 @@ struct NuevoPacienteView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color(.systemGray6))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
+                } else if activos.count == 1 {
+                    HStack(spacing: 10) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Color.caritasPrimario)
+                        Text("\(activos[0].nombreCompleto) · \(activos[0].especialidad)")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.caritasAzul)
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.caritasSuave)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 } else {
                     Picker("Personal", selection: $medicoSeleccionado) {
                         Text("Selecciona quién atiende").tag("")
@@ -848,6 +962,8 @@ struct NuevoPacienteView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: servicioSeleccionado)
+        .onChange(of: servicioSeleccionado) { _, _ in autoSeleccionarMedico() }
+        .onAppear { autoSeleccionarMedico() }
     }
 
     func botonOpcion(etiqueta: String, valor: String, seleccionado: Binding<String>) -> some View {
@@ -912,6 +1028,9 @@ struct NuevoPacienteView: View {
 
             campo("Pulso (lpm)", text: $pulso,
                   keyboard: .numberPad, campoFoco: .pulso, siguiente: .frecuenciaCardiaca)
+            .onChange(of: pulso) { _, nuevo in
+                if frecuenciaCardiaca.isEmpty { frecuenciaCardiaca = nuevo }
+            }
 
             campo("Frec. cardiaca (lpm)", text: $frecuenciaCardiaca,
                   keyboard: .numberPad, campoFoco: .frecuenciaCardiaca, siguiente: .frecuenciaResp)
@@ -1310,7 +1429,16 @@ struct NuevoPacienteView: View {
         }
     }
 
+    private func autoSeleccionarMedico() {
+        let base = jornadaActiva?.personal.filter { $0.esActivo } ?? todoElPersonal.filter { $0.esActivo }
+        let activos = base.filter { p in
+            p.areasDeServicio.isEmpty || p.areasDeServicio.contains(servicioSeleccionado)
+        }
+        if activos.count == 1 { medicoSeleccionado = activos[0].nombreCompleto }
+    }
+
     private func reiniciarFormulario() {
+        idDuplicadoDescartado = nil
         pasoActual = 0; curp = ""; nombreBusqueda = ""; tipoPaciente = ""
         pacienteParaConsulta = nil; mostrarNuevaConsultaRegresa = false
         fechaBusqueda = Date(); usarFechaBusqueda = false

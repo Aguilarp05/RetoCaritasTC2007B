@@ -1,22 +1,19 @@
 # Cáritas — App de Brigadas Médicas
 
-iOS/iPadOS app para **Cáritas** — organización católica que realiza brigadas médicas móviles en comunidades rurales de México. Gestiona registro de pacientes, consultas, medicamentos, personal médico y estadísticas por jornada. UI y variables principalmente en español.
+iOS/iPadOS app para **Cáritas** — organización católica que realiza brigadas médicas móviles en comunidades rurales de México. Gestiona registro de pacientes, consultas, recetas, personal médico y estadísticas por jornada. UI y variables en español.
 
-El proyecto Xcode está en `Reto/Reto.xcodeproj`. Todo el código fuente vive bajo `Reto/Reto/`. El backend es `main.py` en la raíz del repositorio.
+Proyecto Xcode: `Reto/Reto.xcodeproj` · Código fuente: `Reto/Reto/` · Backend: `main.py` (raíz del repo)
 
 ## Build & Run
 
-Abre `Reto/Reto.xcodeproj` en Xcode, selecciona un simulador de iPad (el layout usa `NavigationSplitView`) y presiona ⌘R.
+Abre `Reto/Reto.xcodeproj` en Xcode, selecciona un simulador de iPad y presiona ⌘R.
 
 ```bash
-# Build
-xcodebuild -project Reto/Reto.xcodeproj -scheme Reto -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' build
-
-# Tests
-xcodebuild -project Reto/Reto.xcodeproj -scheme Reto -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' test
+xcodebuild -project Reto/Reto.xcodeproj -scheme Reto \
+  -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' build
 ```
 
-## Stack técnico
+## Stack
 
 | Elemento | Detalle |
 |---|---|
@@ -24,99 +21,108 @@ xcodebuild -project Reto/Reto.xcodeproj -scheme Reto -destination 'platform=iOS 
 | UI | SwiftUI |
 | Persistencia | SwiftData |
 | Backend | FastAPI + MySQL (VM escolar, requiere VPN) |
-| Dependencias externas | Ninguna |
-| Target | iPadOS 17+ |
-| Orientación | Landscape (`NavigationSplitView`) |
+| Dependencias | Ninguna |
+| Target | iPadOS 17+, Landscape |
 
-## Funcionalidades principales
+## Funcionalidades
 
-- **Configurar jornada** — municipio AMM, servicios disponibles y personal asignado
-- **Registro de pacientes** — wizard multi-paso con CURP, datos personales, motivo de consulta, signos vitales, receta médica y aviso de privacidad con firma
-- **Receta médica** — nombre del medicamento, cantidad con selector de unidad (mg / g / ml / tab. / cáp. / gotas / sobre / amp.) y duración
-- **Expediente del paciente** — historial de consultas con recetas completas, medicamentos activos con dosis y duración, datos clínicos (IMC calculado) y línea de tiempo
-- **Nueva consulta** — seguimiento para pacientes ya registrados; sección de medicamentos recetados disponible en todos los tipos de consulta (general, dental, optometría, entrega)
-- **Personal médico** — alta/edición con CURP auto-generado, áreas de servicio múltiples, filtrado por jornada activa
-- **Servicios filtrados por jornada** — el picker de servicios solo muestra los habilitados al configurar el día; el picker de médico solo muestra personal asignado a la jornada
-- **Dashboard** — resumen del día con conteo de pacientes y disponibilidad de servicios
-- **Estadísticas** — métricas reales desde SwiftData: distribución por sexo/edad, registros por hora, diagnósticos frecuentes
-- **Sincronización** — sube pacientes, consultas, recetas, medicamentos, personal, jornadas y consentimientos al backend FastAPI
+### Jornada
+- Configuración diaria: municipio AMM, servicios disponibles, personal asignado
+- Al iniciar con red: descarga automática de todos los pacientes del municipio → disponibles offline toda la brigada
+- La app filtra pacientes, conteos y estadísticas según el municipio y jornada activos
+
+### Registro de pacientes (wizard multi-paso)
+1. **Identificación** — primera visita o ya tiene expediente; búsqueda por nombre y CURP con algoritmo de similitud
+2. **Datos personales** — nombre, fecha de nacimiento, sexo (obligatorio, "Prefiero no decir" es opción válida), municipio de residencia; detección automática de posibles duplicados (score 0–100 ponderado por nombre, apellido, fecha de nacimiento y municipio; alerta si ≥ 70)
+3. **Motivo de consulta** — servicios filtrados por los habilitados en la jornada; médico auto-seleccionado si solo hay uno disponible para el servicio
+4. **Signos vitales** — solo Consulta general; frecuencia cardiaca se auto-llena desde el pulso
+5. **Receta médica** — nombre + cantidad + unidad (mg/g/ml/tab./cáp./gotas/sobre/amp.) + duración; filas dinámicas con "+"
+6. **Aviso de privacidad** — PDF, checkbox, firma, y tarjeta resumen de los datos capturados
+
+**UX del wizard:** botón X con confirmación si hay datos ingresados; toast animado ("✓ Juan García registrado") al guardar que auto-reinicia el formulario.
+
+### Expediente clínico (3 pestañas)
+Selector de pestañas: botones cuadrados de ancho completo con línea indicadora.
+
+| Pestaña | Contenido |
+|---|---|
+| **Datos clínicos** (default) | IMC calculado, signos vitales, presión arterial, datos socioeconómicos |
+| **Medicamentos** | Historial de recetas agrupado por consulta: nombre, dosis, duración, observaciones |
+| **Consultas** | Línea de tiempo expandible — toca una entrada para ver motivo, diagnóstico, notas, recetas, signos vitales y procedimientos |
+
+### Nueva consulta
+- Accesible desde el expediente del paciente
+- Todos los tipos (general, dental, optometría, entrega) incluyen sección de medicamentos recetados con selector de unidad
+- Médico auto-seleccionado si solo hay uno disponible; frecuencia cardiaca se auto-llena desde el pulso
+
+### Filtrado por jornada
+- **Dashboard:** cuenta solo pacientes con consulta en la jornada activa del día
+- **Historial:** muestra pacientes del municipio activo (pre-cargados del servidor) **más** cualquier paciente atendido en la jornada aunque viva en otro municipio
+- Sin jornada activa: muestra todo sin filtro
+
+### Personal médico
+- Alta/edición con CURP auto-generado (algoritmo RENAPO, primeros 16 chars exactos)
+- Áreas de servicio múltiples; el picker de médico filtra por jornada activa + servicio seleccionado
+
+### Sincronización (requiere VPN escolar)
+Sube en orden: personal → jornadas → pacientes → consultas + recetas → medicamentos → consentimientos.
+Solo sube registros con `sincronizado != true`. Al crear una consulta, el servidor devuelve `id_registro` para luego subir las recetas.
 
 ## Arquitectura
 
-### Modelos de datos (`@Model` — SwiftData)
+### Modelos SwiftData
 
-| Archivo | Clase | Notas clave |
-|---|---|---|
-| `Paciente.swift` | `Paciente` | Raíz; posee `[Consulta]`, `[MedicamentoPaciente]` (cascade-delete) y `[ConsentimientoPrivacidad]` |
-| `Consulta.swift` | `Consulta` | `recetasJSON: String` almacena `[RecetaLocal]` en JSON (nombre + dosis combinada + duracion); `medicamentos: [String]` para nombres |
-| `MedicamentoPaciente.swift` | `MedicamentoPaciente` | `indicacion` = dosis + instrucciones combinadas; `duracion: String?`; `estaActivo` = `fechaFin == nil` |
-| `Personal.swift` | `Personal` | `curpPersonal` es PK funcional; `areasDeServicio: [String]`; `matricula: String?` nil para estudiantes |
-| `Jornada.swift` | `Jornada` | `serviciosDisponibles: [String]` controla qué servicios están activos ese día |
-| `Locacion.swift` | `Locacion` | Siempre estado = "Nuevo León" (alcance AMM) |
-| `ConsentimientoPrivacidad.swift` | `ConsentimientoPrivacidad` | Pertenece a un `Paciente`; tiene `sincronizado: Bool?` |
-
-### Pasos del wizard (`NuevoPacienteView`)
-
-| Paso | Condición |
+| Modelo | Notas |
 |---|---|
-| Identificación | Siempre |
-| Datos personales | Siempre |
-| Motivo de consulta | Siempre — servicios filtrados por jornada activa |
-| Signos vitales | Solo "Consulta general" |
-| Receta médica | Todos excepto "Entrega de medicamentos" |
-| Aviso de privacidad | Siempre |
+| `Paciente` | Raíz; posee `[Consulta]`, `[MedicamentoPaciente]`, `[ConsentimientoPrivacidad]` (cascade-delete) |
+| `Consulta` | `recetasJSON: String` — `[RecetaLocal]` codificado como JSON (nombre + dosis + duracion) |
+| `MedicamentoPaciente` | `indicacion` = dosis + instrucciones combinadas; `duracion: String?` |
+| `Personal` | `areasDeServicio: [String]`; `curpPersonal` es PK funcional |
+| `Jornada` | `serviciosDisponibles: [String]` controla qué servicios aparecen en el wizard |
+| `ConsentimientoPrivacidad` | `sincronizado: Bool?` |
 
-### Flujo de recetas
+### Backend — endpoints (`main.py`)
 
-1. El formulario captura **nombre**, **cantidad** (numérico) + **unidad** (picker), **duración** e **indicación**
-2. La dosis se guarda como `"500 mg"` en `RecetaLocal.dosis`
-3. `Consulta.recetasJSON` guarda `[RecetaLocal]` como JSON
-4. `MedicamentoPaciente` se crea con `indicacion = "500 mg · indicación"` para que aparezca en la pestaña Medicamentos
-5. En sync: `POST /registros-clinicos` devuelve `id_registro` → se postean las recetas a `POST /registros-clinicos/{id}/recetas`
+| Endpoint | Notas |
+|---|---|
+| `GET /pacientes?municipio=X` | Filtra por municipio cuando se provee el parámetro |
+| `POST /pacientes` | |
+| `POST /registros-clinicos` | Devuelve `{"id_registro": "uuid", "mensaje": "..."}` |
+| `GET/POST /registros-clinicos/{id}/recetas` | |
+| `POST /medicamentos-paciente` | |
+| `GET/POST /personal` | POST hace upsert; asigna `numero_personal` automáticamente |
+| `GET/POST /jornadas` | |
+| `POST /consentimientos` | Inserta en `consentimiento_privacidad` |
+
+**URL:** `http://10.14.255.97:8001` — requiere VPN o red escolar
 
 ### Normalización de datos (`StringNormalizacion.swift`)
 
-Todos los datos se normalizan al guardar:
+Aplicada al guardar en todos los formularios. Pre-computar con `let` antes de pasar a inicializadores de SwiftData.
 
-| Helper | Aplica a | Ejemplo |
+| Helper | Aplica a | Resultado |
 |---|---|---|
-| `.nombrePropio` | Nombres, apellidos, municipio | `"JUAN DE LA ROSA"` → `"Juan de la Rosa"` |
+| `.nombrePropio` | Nombres, municipio | `"JUAN DE LA ROSA"` → `"Juan de la Rosa"` |
 | `.codigoNormalizado` | CURP, matrícula | `"vagr930"` → `"VAGR930"` |
 | `.textoLibre` | Motivo, diagnóstico, notas | `"DOLOR cabeza"` → `"Dolor cabeza"` |
 | `.limpio` | Todos | Trim + colapsa espacios |
 
-### Backend (`main.py` — FastAPI + MySQL)
+### Design tokens (`Colores.swift`)
 
-**URL:** `http://10.14.255.97:8001` — requiere VPN o red escolar
-
-| Endpoint | Método | Notas |
+| Token | Color | Uso |
 |---|---|---|
-| `/pacientes` | GET / POST | |
-| `/pacientes/{id}/registros-clinicos` | GET | |
-| `/registros-clinicos` | POST | Devuelve `id_registro` (UUID generado en Python) |
-| `/registros-clinicos/{id}/recetas` | GET / POST | |
-| `/pacientes/{id}/medicamentos` | GET | |
-| `/medicamentos-paciente` | POST | |
-| `/personal` | GET / POST | POST hace upsert por `id_personal` o `curp_personal` |
-| `/jornadas` | GET / POST | |
-| `/consentimientos` | POST | Sincroniza `consentimiento_privacidad` |
+| `caritasPrimario` | `#009CA6` teal | Botones principales, tab activo |
+| `caritasAcento` | `#FF7F32` naranja | CTA "Registrar", paso actual del wizard |
+| `caritasAzul` | `#003B5C` azul marino | Encabezados, nombres |
+| `caritasGris` | `#888B8D` gris | Texto secundario, inactivos |
+| `caritasSuave` | `#D1E0D7` verde claro | Fondos seleccionados, franjas de encabezado |
 
-### Sistema de diseño (`Colores.swift`)
-
-| Token | Hex | Uso |
-|---|---|---|
-| `Color.caritasPrimario` | `#009CA6` | Teal — botones, estados activos |
-| `Color.caritasAcento` | `#FF7F32` | Naranja — CTA "Registrar", indicador de paso actual |
-| `Color.caritasAzul` | `#003B5C` | Azul marino — encabezados |
-| `Color.caritasGris` | `#888B8D` | Texto secundario, estados inactivos |
-| `Color.caritasSuave` | `#D1E0D7` | Verde claro — fondos de tarjetas seleccionadas |
-
-Nunca usar valores hex crudos en vistas — siempre usar estos tokens.
+Nunca usar hex crudos en vistas.
 
 ## Alcance geográfico
 
-Las 16 municipalidades del **Área Metropolitana de Monterrey (AMM)**, Nuevo León.
+16 municipios del **Área Metropolitana de Monterrey (AMM)**, Nuevo León.
 
-## Equipo
+## Proyecto académico
 
-Proyecto académico **TC2007B** en colaboración con Cáritas Monterrey.
+**TC2007B** — en colaboración con Cáritas Monterrey.

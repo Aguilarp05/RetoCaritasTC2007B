@@ -151,6 +151,18 @@ struct NuevaConsultaView: View {
                                         .background(Color(.systemGray6))
                                         .clipShape(RoundedRectangle(cornerRadius: 8))
                                         .font(.subheadline)
+                                } else if activos.count == 1 {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(Color.caritasPrimario)
+                                        Text("\(activos[0].nombreCompleto) · \(activos[0].especialidad)")
+                                            .font(.subheadline)
+                                            .foregroundStyle(Color.caritasAzul)
+                                    }
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.caritasSuave)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
                                 } else {
                                     Picker("Personal", selection: $medico) {
                                         Text("Selecciona quién atiende").tag("")
@@ -184,6 +196,10 @@ struct NuevaConsultaView: View {
             .onAppear {
                 if lugar.isEmpty, let loc = jornadaActiva?.locacion {
                     lugar = [loc.municipio, loc.comunidad].compactMap { $0 }.joined(separator: ", ")
+                }
+                let disponibles = personalDisponibleParaConsulta()
+                if disponibles.count == 1 && medico.isEmpty {
+                    medico = disponibles[0].nombreCompleto
                 }
             }
             .toolbar {
@@ -411,6 +427,9 @@ struct NuevaConsultaView: View {
                     }
                 }
                 campo("Pulso (lpm)", texto: $pulso)
+                    .onChange(of: pulso) { _, nuevo in
+                        if frecuenciaCardiaca.isEmpty { frecuenciaCardiaca = nuevo }
+                    }
                 campo("Frec. cardiaca", texto: $frecuenciaCardiaca)
                 campo("Frec. respiratoria", texto: $frecuenciaRespiratoria)
                 campo("Perímetro abdominal (cm)", texto: $perimetroAbdominal)
@@ -678,9 +697,7 @@ struct NuevaConsultaView: View {
             telefono: "618 234 5678",
             estado: "Durango",
             municipio: "El Mezquital",
-            condicionesCronicas: ["Diabetes tipo 2", "Nutrición"],
-            fechaProximoSeguimiento: Calendar.current.date(from: DateComponents(year: 2026, month: 4, day: 10)),
-            motivoProximoSeguimiento: "Control glucosa"
+            condicionesCronicas: ["Diabetes tipo 2", "Nutrición"]
         )
     )
 }

@@ -5,8 +5,10 @@ struct DashboardView: View {
 
     var onNuevaConsulta: (() -> Void)? = nil
     @Environment(\.toggleSidebar) private var toggleSidebar
+    @Environment(\.hideSidebar) private var hideSidebar
     @Query(sort: \Jornada.fecha, order: .reverse) private var jornadas: [Jornada]
     @Query(sort: \Paciente.fechaRegistro, order: .reverse) private var todosLosPacientes: [Paciente]
+    @State private var pacienteSeleccionado: Paciente? = nil
 
     private var jornadaActiva: Jornada? {
         jornadas.first { Calendar.current.isDateInToday($0.fecha) && $0.horaFin == nil }
@@ -63,6 +65,20 @@ struct DashboardView: View {
     }
 
     var body: some View {
+        Group {
+            if let paciente = pacienteSeleccionado {
+                ExpedientePacienteView(
+                    paciente: paciente,
+                    onBack: { pacienteSeleccionado = nil }
+                )
+            } else {
+                dashboard
+            }
+        }
+        .animation(.easeInOut(duration: 0.18), value: pacienteSeleccionado == nil)
+    }
+
+    private var dashboard: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
 
@@ -224,7 +240,10 @@ struct DashboardView: View {
 
                     ForEach(ultimosPacientes) { paciente in
                         VStack(spacing: 0) {
-                            NavigationLink(destination: VistaPacienteRegistrado(paciente: paciente)) {
+                            Button {
+                                hideSidebar()
+                                pacienteSeleccionado = paciente
+                            } label: {
                                 filaUltimoPaciente(paciente)
                             }
                             .buttonStyle(.plain)

@@ -3,6 +3,7 @@ import SwiftData
 
 struct HistorialJornadaView: View {
     @Environment(\.toggleSidebar) private var toggleSidebar
+    @Environment(\.hideSidebar) private var hideSidebar
     @Query(sort: \Paciente.fechaRegistro, order: .reverse) private var todosLosPacientes: [Paciente]
     @Query(sort: \Jornada.fecha, order: .reverse) private var jornadas: [Jornada]
     @State private var pacienteSeleccionado: Paciente?
@@ -12,10 +13,12 @@ struct HistorialJornadaView: View {
     }
 
     private var pacientes: [Paciente] {
-        guard let municipio = jornadaActiva?.locacion?.municipio, !municipio.isEmpty else {
-            return todosLosPacientes
+        guard let jornada = jornadaActiva else { return todosLosPacientes }
+        let municipio = jornada.locacion?.municipio ?? ""
+        return todosLosPacientes.filter { p in
+            (!municipio.isEmpty && p.municipio == municipio) ||
+            p.consultas.contains { $0.jornada?.idJornada == jornada.idJornada }
         }
-        return todosLosPacientes.filter { $0.municipio == municipio }
     }
 
     var body: some View {
@@ -82,6 +85,7 @@ struct HistorialJornadaView: View {
                     VStack(spacing: 0) {
                         ForEach(pacientes) { paciente in
                             Button {
+                                hideSidebar()
                                 pacienteSeleccionado = paciente
                             } label: {
                                 FilaPacienteHistorial(paciente: paciente)
