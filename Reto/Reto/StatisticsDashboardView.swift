@@ -29,6 +29,22 @@ struct TendenciaBrigada: Identifiable {
     let pacientes: Int
 }
 
+enum PeriodoHistorial: String, CaseIterable {
+    case semana = "Semana"
+    case mes    = "Mes"
+    case anio   = "Año"
+    case todo   = "Todo"
+
+    var diasAtras: Int? {
+        switch self {
+        case .semana: return 7
+        case .mes:    return 30
+        case .anio:   return 365
+        case .todo:   return nil
+        }
+    }
+}
+
 struct DashboardStats {
     let patientsToday: Int
     let serviciosActivos: Int
@@ -66,6 +82,7 @@ struct StatisticsDashboardView: View {
     @Query(sort: \Jornada.fecha, order: .reverse) private var jornadas: [Jornada]
 
     @State private var tabSeleccionada: TabStats = .jornada
+    @State private var periodoSeleccionado: PeriodoHistorial = .todo
     @State private var pdfURL: URL?
     @State private var mostrarCompartir = false
 
@@ -145,16 +162,29 @@ struct StatisticsDashboardView: View {
 
     private var statsZona: StatsZona {
         let municipio = jornadaActiva?.locacion?.municipio ?? ""
+        let cal = Calendar.current
 
-        let jornadasZona = jornadas.filter { $0.locacion?.municipio == municipio }
+        let fechaLimite: Date? = periodoSeleccionado.diasAtras.map {
+            cal.date(byAdding: .day, value: -$0, to: Date()) ?? Date()
+        }
+
+        let jornadasZona = jornadas.filter { j in
+            j.locacion?.municipio == municipio &&
+            (fechaLimite == nil || j.fecha >= fechaLimite!)
+        }
         let idsJornadasZona = Set(jornadasZona.map { $0.idJornada })
 
         let pacientesZona = pacientes.filter { p in
-            p.municipio == municipio ||
-            p.consultas.contains { idsJornadasZona.contains($0.jornada?.idJornada ?? UUID()) }
+            p.consultas.contains { c in
+                idsJornadasZona.contains(c.jornada?.idJornada ?? UUID())
+            }
         }
 
-        let recurrentes = pacientesZona.filter { $0.consultas.count > 1 }.count
+        let recurrentes = pacientesZona.filter { p in
+            p.consultas.filter { c in
+                idsJornadasZona.contains(c.jornada?.idJornada ?? UUID())
+            }.count > 1
+        }.count
 
         let tendencia: [TendenciaBrigada] = jornadasZona
             .sorted { $0.fecha < $1.fecha }
@@ -166,7 +196,9 @@ struct StatisticsDashboardView: View {
                 return TendenciaBrigada(fecha: j.fecha, label: label, pacientes: count)
             }
 
-        let consultasZona = pacientesZona.flatMap { $0.consultas }
+        let consultasZona = pacientesZona.flatMap { $0.consultas }.filter { c in
+            idsJornadasZona.contains(c.jornada?.idJornada ?? UUID())
+        }
 
         var diagCounts: [String: Int] = [:]
         for c in consultasZona where !c.diagnostico.isEmpty { diagCounts[c.diagnostico, default: 0] += 1 }
@@ -366,6 +398,24 @@ struct StatisticsDashboardView: View {
     @ViewBuilder
     private func zonaContent(_ z: StatsZona, width: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
+
+            // Selector de período
+            HStack {
+                Text("Período")
+                    .font(.caption).foregroundStyle(Color.caritasGris)
+                Spacer()
+                Picker("Período", selection: $periodoSeleccionado) {
+                    ForEach(PeriodoHistorial.allCases, id: \.self) { p in
+                        Text(p.rawValue).tag(p)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 320)
+            }
+            .padding(.horizontal, 24).padding(.vertical, 14)
+            .background(Color(.systemGroupedBackground))
+
+            Divider()
 
             LazyVGrid(columns: summaryColumns(for: width, count: 3), spacing: 0) {
                 statResumen(titulo: "Brigadas realizadas",    valor: "\(z.totalBrigadas)",         subtitulo: z.municipio)

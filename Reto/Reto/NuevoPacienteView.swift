@@ -26,6 +26,8 @@ struct NuevoPacienteView: View {
     @State private var pasoActual = 0
     @State private var nombreGuardado = ""
 
+    // Pasos del wizard según el tipo de paciente y servicio seleccionado.
+    // Signos vitales solo para consulta general; recetas se omiten en entrega de medicamentos.
     var pasosDinamicos: [String] {
         if tipoPaciente == "regresa" { return ["identificacion"] }
         var pasos = ["identificacion", "datos_personales", "consulta"]
@@ -610,6 +612,9 @@ struct NuevoPacienteView: View {
     // Retorna el paciente más similar al formulario en curso, su similitud en % relativo al máximo
     // alcanzable con los campos disponibles, y los campos que coincidieron.
     // Solo corre cuando ya hay nombre + apellido con al menos 2 caracteres.
+    // Detección de duplicados en tiempo real. Usa intersección de frecuencia de caracteres
+    // para comparar nombres con tolerancia a errores tipográficos.
+    // Devuelve el candidato más parecido si supera el 70% del puntaje máximo alcanzable.
     private var candidatoDuplicado: (paciente: Paciente, score: Int, campos: [String])? {
         let n1 = primerNombre.trimmingCharacters(in: .whitespaces)
         let a1 = primerApellido.trimmingCharacters(in: .whitespaces)
@@ -623,7 +628,7 @@ struct NuevoPacienteView: View {
         let cn1 = clean(n1), ca1 = clean(a1), ca2 = clean(segundoApellido)
         let cal = Calendar.current
 
-        // Máximo alcanzable según los campos que el usuario ya rellenó
+        // El máximo sube conforme el usuario llena más campos
         var maxPosible = 85  // nombre (30) + apellido (30) + fecha (25) — siempre presentes
         if !ca2.isEmpty            { maxPosible += 10 }
         if !municipioSeleccionado.isEmpty { maxPosible += 5 }
@@ -631,7 +636,7 @@ struct NuevoPacienteView: View {
 
         var mejor: (Paciente, Int, [String])? = nil
 
-        // Solo busca duplicados en el municipio de la jornada activa; si no hay jornada, busca en todos
+        // Restringe la búsqueda al municipio de la jornada para evitar falsos positivos entre zonas
         let pool: [Paciente]
         if let munJornada = jornadaActiva?.locacion?.municipio, !munJornada.isEmpty {
             pool = pacientes.filter { clean($0.municipio ?? "") == clean(munJornada) }
@@ -643,19 +648,18 @@ struct NuevoPacienteView: View {
             var score = 0
             var campos: [String] = []
 
-            // Primer nombre — proporcional (30 pts = coincidencia total)
+            // Nombre y apellido: puntaje proporcional a la similitud (máx 30 c/u)
             let pn1 = clean(p.primerNombre)
             let ptsnombre = puntajeNombre(pn1, cn1)
             score += ptsnombre
             if ptsnombre >= 20 { campos.append("Nombre") }
 
-            // Primer apellido — proporcional (30 pts = coincidencia total)
             let pa1 = clean(p.primerApellido)
             let ptsapellido = puntajeNombre(pa1, ca1)
             score += ptsapellido
             if ptsapellido >= 20 { campos.append("Primer apellido") }
 
-            // Fecha de nacimiento — 25 pts mismo día, 10 pts mismo año
+            // Fecha: 25 pts si es el mismo día, 10 pts si solo coincide el año
             if cal.isDate(p.fechaNacimiento, inSameDayAs: fechaNacimiento) {
                 score += 25
                 campos.append("Fecha de nacimiento")
@@ -665,13 +669,11 @@ struct NuevoPacienteView: View {
                 campos.append("Año de nacimiento")
             }
 
-            // Segundo apellido — 10 pts exacto
             if !ca2.isEmpty && clean(p.segundoApellido ?? "") == ca2 {
                 score += 10
                 campos.append("Segundo apellido")
             }
 
-            // Municipio — 5 pts
             if !municipioSeleccionado.isEmpty,
                let mun = p.municipio,
                clean(mun) == clean(municipioSeleccionado) {
@@ -681,7 +683,7 @@ struct NuevoPacienteView: View {
 
             if score >= umbral, mejor == nil || score > mejor!.1 { mejor = (p, score, campos) }
         }
-        // El score devuelto es % relativo al máximo alcanzable (0–100)
+        // Normaliza el score a porcentaje (0–100) relativo al máximo posible
         return mejor.map { (paciente: $0.0, score: $0.1 * 100 / maxPosible, campos: $0.2) }
     }
 
@@ -1037,17 +1039,14 @@ struct NuevoPacienteView: View {
                 }
             }
 
-            if servicioSeleccionado == "Entrega de medicamentos" {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("¿El paciente tiene IMSS?")
-                        .font(.caption)
-                        .foregroundStyle(Color.caritasGris)
-                    HStack(spacing: 10) {
-                        botonOpcion(etiqueta: "Sí", valor: "si", seleccionado: $tieneIMSS)
-                        botonOpcion(etiqueta: "No", valor: "no", seleccionado: $tieneIMSS)
-                    }
+            VStack(alignment: .leading, spacing: 6) {
+                Text("¿El paciente tiene IMSS?")
+                    .font(.caption)
+                    .foregroundStyle(Color.caritasGris)
+                HStack(spacing: 10) {
+                    botonOpcion(etiqueta: "Sí", valor: "si", seleccionado: $tieneIMSS)
+                    botonOpcion(etiqueta: "No", valor: "no", seleccionado: $tieneIMSS)
                 }
-                .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
             VStack(alignment: .leading, spacing: 4) {

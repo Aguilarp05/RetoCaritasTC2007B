@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Campo de texto con sugerencias autocomplete basadas en valores previamente guardados.
-/// Las sugerencias se muestran como lista flotante debajo del campo mientras está enfocado.
+// Campo de texto que muestra sugerencias del historial mientras el médico escribe.
+// El caller pasa `sugerencias` ya ordenadas por frecuencia; este componente solo filtra y muestra.
 struct CampoAutocomplete: View {
     let titulo: String
     @Binding var texto: String
@@ -10,6 +10,7 @@ struct CampoAutocomplete: View {
     @FocusState private var enfocado: Bool
     @State private var seleccionando = false
 
+    // Búsqueda por subcadena, sin tildes ni mayúsculas. Máximo 5 resultados. Excluye match exacto.
     private var filtradas: [String] {
         guard !texto.trimmingCharacters(in: .whitespaces).isEmpty else { return [] }
         let q = texto
@@ -38,7 +39,7 @@ struct CampoAutocomplete: View {
                     .focused($enfocado)
             }
 
-            // Lista de sugerencias
+            // Lista flotante — solo mientras el campo está activo y hay coincidencias
             if enfocado && !filtradas.isEmpty {
                 VStack(spacing: 0) {
                     ForEach(filtradas, id: \.self) { sug in

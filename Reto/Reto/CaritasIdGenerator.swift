@@ -1,8 +1,7 @@
 import Foundation
 
-/// Genera un identificador único propio de Cáritas con el formato:
-/// [2 letras nombre][2 letras segundo nombre o XX][YYMMDD][3 letras municipio][M/F/X]
-/// Ejemplo: LUXX920312DURF
+// ID interno para pacientes sin CURP. Formato: [N1][N2][YYMMDD][EST][S]
+// Determinístico — app y servidor lo generan de forma independiente para sincronizar.
 func generarCaritasId(
     primerNombre: String,
     segundoNombre: String?,
@@ -15,7 +14,7 @@ func generarCaritasId(
     if let seg = segundoNombre, !seg.trimmingCharacters(in: .whitespaces).isEmpty {
         n2 = segmento(seg, longitud: 2)
     } else {
-        n2 = "XX"
+        n2 = "XX" // marcador de ausencia de segundo nombre
     }
 
     let comps = Calendar.current.dateComponents([.year, .month, .day], from: fechaNacimiento)
@@ -35,8 +34,7 @@ func generarCaritasId(
     return "\(n1)\(n2)\(yy)\(mm)\(dd)\(lugar)\(s)"
 }
 
-// Normaliza texto (sin tildes, solo letras, mayúsculas) y toma los primeros `longitud` chars.
-// Si hay menos chars que `longitud`, rellena con "X".
+// Toma los primeros `longitud` caracteres del texto normalizado. Rellena con "X" si es corto.
 private func segmento(_ texto: String, longitud: Int) -> String {
     let limpio = texto
         .folding(options: .diacriticInsensitive, locale: .current)

@@ -274,7 +274,7 @@ struct MedicamentoCreateDTO: Encodable {
 
 @MainActor
 class CaritasSyncVM: ObservableObject {
-    @Published var isOffline: Bool = false
+    @Published var isOffline: Bool = true
     @Published var estaSincronizando: Bool = false
     @Published var pendientesSincronizacion: Int = 0
     @Published var desglosePendientes: String = ""
@@ -298,8 +298,11 @@ class CaritasSyncVM: ObservableObject {
     }()
 
     init() {
-        // Demo: siempre conectado
-        monitor.pathUpdateHandler = { _ in }
+        monitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor in
+                self?.isOffline = path.status != .satisfied
+            }
+        }
         monitor.start(queue: monitorQueue)
     }
 
@@ -307,38 +310,23 @@ class CaritasSyncVM: ObservableObject {
 
     // MARK: - Sync principal
 
+    // Orden obligatorio: personal y jornadas primero porque las consultas los referencian.
+    // La descarga del servidor construye el mapa caritasId → serverUUID que usan los pasos siguientes
+    // para asociar consultas, medicamentos y consentimientos al paciente correcto en la BD.
     func sincronizar(context: ModelContext) async {
         guard !estaSincronizando else { return }
         estaSincronizando = true
-        isOffline = false
         mensajeError = ""
 
-        // Simulación de sincronización para demo
-        try? await Task.sleep(nanoseconds: 1_400_000_000)
+        await subirPersonalLocal(context: context)
+        await subirJornadasLocales(context: context)
+        await subirPacientesLocales(context: context)
+        let caritasIdMap = await descargarPacientesDelServidor(context: context)
+        await subirConsultasLocales(context: context, caritasIdMap: caritasIdMap)
+        await subirMedicamentosLocales(context: context, caritasIdMap: caritasIdMap)
+        await subirConsentimientosLocales(context: context, caritasIdMap: caritasIdMap)
 
-        // Marcar todo como sincronizado localmente
-        if let personal = try? context.fetch(FetchDescriptor<Personal>()) {
-            personal.forEach { $0.sincronizado = true }
-        }
-        if let jornadas = try? context.fetch(FetchDescriptor<Jornada>()) {
-            jornadas.forEach { $0.sincronizado = true }
-        }
-        if let pacientes = try? context.fetch(FetchDescriptor<Paciente>()) {
-            pacientes.forEach { $0.sincronizado = true }
-        }
-        if let consultas = try? context.fetch(FetchDescriptor<Consulta>()) {
-            consultas.forEach { $0.sincronizado = true }
-        }
-        if let meds = try? context.fetch(FetchDescriptor<MedicamentoPaciente>()) {
-            meds.forEach { $0.sincronizado = true }
-        }
-        if let consentimientos = try? context.fetch(FetchDescriptor<ConsentimientoPrivacidad>()) {
-            consentimientos.forEach { $0.sincronizado = true }
-        }
-        try? context.save()
-
-        pendientesSincronizacion = 0
-        desglosePendientes = ""
+        actualizarPendientes(context: context)
         ultimaSincronizacion = Date()
         estaSincronizando = false
     }
@@ -423,6 +411,9 @@ class CaritasSyncVM: ObservableObject {
 
     // MARK: - Pacientes: descarga → devuelve caritasId → serverUUID
 
+    // Descarga todos los pacientes del servidor y devuelve un mapa caritasId → UUID del servidor.
+    // Ese mapa es el puente para subir consultas: la app conoce el caritasId local del paciente
+    // y lo usa para obtener el UUID que el servidor asignó, sin que ambos lados necesiten coordinarse.
     @discardableResult
     func descargarPacientesDelServidor(context: ModelContext) async -> [String: String] {
         guard let url = URL(string: "\(baseURL)/pacientes") else { return [:] }
